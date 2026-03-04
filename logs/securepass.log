@@ -1,0 +1,18 @@
+[2026-03-04 20:01:02] INFO in app: HIBP check — 100/100 breached
+[2026-03-04 20:01:05] INFO in app: Analysis complete — 1664 passwords, risk_level=Medium, score=49.4
+[2026-03-04 20:01:05] INFO in app: Analysis saved — id=26
+[2026-03-04 20:02:54] INFO in app: HIBP check — 100/100 breached
+[2026-03-04 20:02:58] INFO in app: Analysis complete — 1664 passwords, risk_level=Medium, score=49.3
+[2026-03-04 20:02:58] INFO in app: Analysis saved — id=27
+[2026-03-04 20:05:58] INFO in app: HIBP check — 100/100 breached
+[2026-03-04 20:06:03] INFO in app: Analysis complete — 1664 passwords, risk_level=Medium, score=48.5
+[2026-03-04 20:06:03] INFO in app: Analysis saved — id=28
+[2026-03-04 20:28:12] INFO in app: HIBP check — 1664/1664 breached (sampled=True, n=100)
+[2026-03-04 20:28:20] INFO in app: Analysis complete — 1664 passwords, risk_level=Medium, score=56.0
+[2026-03-04 20:28:21] INFO in app: Analysis saved — id=29
+[2026-03-04 20:58:59] INFO in app: HIBP check — 1664/1664 breached (sampled=True, n=100)
+[2026-03-04 20:58:59] INFO in app: HIBP check — 1664/1664 breached (sampled=True, n=100)
+[2026-03-04 20:59:03] INFO in app: Analysis complete — 1664 passwords, risk_level=Medium, score=56.0
+[2026-03-04 20:59:03] INFO in app: Analysis saved — id=30
+[2026-03-04 20:59:03] INFO in app: Analysis complete — 1664 passwords, risk_level=Medium, score=55.9
+[2026-03-04 20:59:03] INFO in app: Analysis saved — id=31

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In — SecurePass AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+</head>
+<body class="auth-page">
+
+<div class="grid-bg"></div>
+<div class="noise"></div>
+
+<!-- Theme toggle -->
+<button class="theme-btn" id="themeToggle" aria-label="Toggle theme">
+  <i class="fa-solid fa-sun"></i>
+</button>
+
+<!-- Auth wrapper: left panel + right card -->
+<div class="auth-wrapper">
+
+  <!-- Left panel — branding -->
+  <div class="auth-panel">
+    <div class="auth-panel-inner">
+      <div class="auth-brand">
+        <div class="brand-icon">
+          <i class="fa-solid fa-shield-halved"></i>
+        </div>
+        <span class="brand-name">SecurePass <em>AI</em></span>
+      </div>
+      <h2 class="panel-headline">Password intelligence<br>for modern teams.</h2>
+      <p class="panel-sub">Detect weak passwords, check breach exposure, map compliance standards — all in seconds.</p>
+      <ul class="panel-features">
+        <li><i class="fa-solid fa-circle-check"></i> AI-powered risk scoring</li>
+        <li><i class="fa-solid fa-circle-check"></i> HaveIBeenPwned integration</li>
+        <li><i class="fa-solid fa-circle-check"></i> NIST, OWASP &amp; ISO 27001 compliance</li>
+        <li><i class="fa-solid fa-circle-check"></i> Downloadable PDF reports</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Right panel — form -->
+  <div class="auth-card">
+
+    <div class="auth-logo">
+      <div class="auth-logo-icon">
+        <i class="fa-solid fa-shield-halved"></i>
+      </div>
+      <span class="auth-logo-name">SecurePass <span>AI</span></span>
+    </div>
+
+    <h1 class="auth-title">Welcome back</h1>
+    <p class="auth-sub">Sign in to your account to continue</p>
+
+    <!-- Alerts -->
+    <div class="error-msg"   id="errMsg"></div>
+    <div class="success-msg" id="successMsg"></div>
+
+    <!-- Email -->
+    <div class="field">
+      <label for="email">
+        <i class="fa-solid fa-envelope"></i> Email address
+      </label>
+      <input type="email" id="email" autocomplete="email" placeholder="you@example.com" spellcheck="false">
+    </div>
+
+    <!-- Password -->
+    <div class="field">
+      <label for="password">
+        <i class="fa-solid fa-lock"></i> Password
+      </label>
+      <div class="pw-wrap">
+        <input type="password" id="password" autocomplete="current-password" placeholder="Enter your password">
+        <button class="pw-eye" id="pwEye" type="button" aria-label="Toggle password visibility">
+          <i class="fa-solid fa-eye"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- Submit -->
+    <button class="btn-submit" id="loginSubmit" type="button">
+      <i class="fa-solid fa-arrow-right-to-bracket"></i>
+      <span id="loginBtnText">Sign In</span>
+    </button>
+
+    <div class="auth-divider"><span>or</span></div>
+
+    <div class="auth-footer">
+      Don't have an account? <a href="/register">Create one <i class="fa-solid fa-arrow-right"></i></a>
+    </div>
+
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+<script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+<script src="{{ url_for('static', filename='js/login.js') }}"></script>
+</body>
+</html>

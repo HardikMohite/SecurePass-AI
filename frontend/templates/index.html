@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SecurePass AI — Password Intelligence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/hibp.css') }}">
+</head>
+<body>
+
+<div class="grid-bg"></div>
+<div class="noise"></div>
+
+<!-- ── Navigation ─────────────────────────────────────────── -->
+<nav>
+  <div class="nav-inner">
+    <a class="logo" href="/">
+      <div class="logo-icon">
+        <i class="fa-solid fa-shield-halved"></i>
+      </div>
+      SecurePass <span style="color:var(--accent)">AI</span>
+    </a>
+
+    <div class="nav-actions">
+      <!-- Theme toggle -->
+      <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+        <div class="toggle-thumb" id="toggleThumb">
+          <i class="fa-solid fa-sun"></i>
+        </div>
+      </button>
+
+      <!-- Guest nav -->
+      <div id="navAuth" style="display:flex;gap:8px;align-items:center">
+        <a href="/login"    class="btn-nav">Sign In</a>
+        <a href="/register" class="btn-nav primary">Get Started</a>
+      </div>
+
+      <!-- Authed nav -->
+      <div id="navUser" style="display:none;align-items:center;gap:12px">
+        <div class="nav-user">
+          <div class="user-dot"></div>
+          <span id="navEmail"></span>
+        </div>
+        <button id="logoutBtn" class="btn-nav">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i> Logout
+        </button>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Hero ───────────────────────────────────────────────── -->
+<main>
+  <div class="container">
+    <section class="hero">
+      <div class="hero-badge">
+        <div class="badge-dot"></div>
+        AI-Powered Password Intelligence
+      </div>
+      <h1>Analyse. Detect. <em>Secure.</em></h1>
+      <p>Upload your password dataset. Get instant risk scoring, breach detection, compliance mapping, and AI-generated policy recommendations.</p>
+      <div class="hero-stats">
+        <div class="stat-item">
+          <div class="stat-num">12B+</div>
+          <div class="stat-lbl">Breached Passwords</div>
+        </div>
+        <div class="stat-div"></div>
+        <div class="stat-item">
+          <div class="stat-num">99.9%</div>
+          <div class="stat-lbl">Detection Accuracy</div>
+        </div>
+        <div class="stat-div"></div>
+        <div class="stat-item">
+          <div class="stat-num">3</div>
+          <div class="stat-lbl">Compliance Standards</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Input Section ──────────────────────────────────── -->
+    <section id="inputSection">
+      <div class="grid-2" style="gap:24px;align-items:start">
+
+        <!-- Upload card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-icon"><i class="fa-solid fa-folder-open"></i></div>
+            <span class="card-title">Dataset Upload</span>
+          </div>
+          <div class="card-body">
+            <div class="upload-zone" id="uploadZone">
+              <div class="upload-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+              <div class="upload-title">Drop your password file here</div>
+              <div class="upload-sub">or click to browse</div>
+              <button class="btn btn-ghost" id="selectFileBtn" style="pointer-events:none">
+                <i class="fa-solid fa-file-arrow-up"></i> Choose File
+              </button>
+              <div class="upload-meta">Supports .txt and .csv — max 16 MB</div>
+              <input type="file" id="fileInput" accept=".txt,.csv" style="display:none">
+            </div>
+
+            <div class="upload-file-info" id="fileInfo">
+              <i class="fa-solid fa-file-lines"></i>
+              <span class="file-name" id="fileName"></span>
+              <button class="btn-remove-file" id="removeFileBtn" title="Remove file">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            <div class="options-row">
+              <div class="toggle-wrap active" id="toggleBreach">
+                <div class="toggle-pill on" id="pillBreach"></div>
+                <span class="toggle-label">
+                  <i class="fa-solid fa-magnifying-glass"></i> Breach Check
+                </span>
+              </div>
+              <div class="toggle-wrap active" id="toggleAI">
+                <div class="toggle-pill on" id="pillAI"></div>
+                <span class="toggle-label">
+                  <i class="fa-solid fa-robot"></i> AI Insights
+                </span>
+              </div>
+              <div class="toggle-wrap active" id="toggleCompliance">
+                <div class="toggle-pill on" id="pillCompliance"></div>
+                <span class="toggle-label">
+                  <i class="fa-solid fa-clipboard-check"></i> Compliance
+                </span>
+              </div>
+            </div>
+
+            <button class="btn btn-primary btn-full" id="analyzeBtn" disabled>
+              <i class="fa-solid fa-bolt"></i> Run Analysis
+            </button>
+          </div>
+        </div>
+
+        <!-- Quick password checker -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-icon"><i class="fa-solid fa-shield-halved"></i></div>
+            <span class="card-title">Quick Password Check</span>
+          </div>
+          <div class="card-body">
+            <p style="font-size:0.82rem;color:var(--text-muted);margin-bottom:16px">
+              Test a single password for strength and breach exposure.
+            </p>
+            <div class="pw-input-wrap" style="margin-bottom:8px">
+              <input class="pw-input" type="password" id="pwInput" placeholder="Enter password…" autocomplete="off">
+              <button class="pw-toggle-vis" id="pwEye">
+                <i class="fa-solid fa-eye"></i>
+              </button>
+            </div>
+            <div class="strength-meter">
+              <div class="strength-fill" id="pwStrengthFill"></div>
+            </div>
+            <div style="font-size:0.7rem;color:var(--text-muted);margin:4px 0 16px;text-align:right" id="pwStrengthLabel"></div>
+
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary" id="pwCheckBtn" style="flex:1">
+                <i class="fa-solid fa-magnifying-glass"></i> Analyse
+              </button>
+              <button class="btn btn-ghost" id="pwHIBPBtn" style="flex:1">
+                <i class="fa-solid fa-triangle-exclamation" style="color:var(--red)"></i> Breach Check
+              </button>
+            </div>
+
+            <div id="pwResultWrap"  style="display:none;margin-top:14px"></div>
+            <div id="hibpResultWrap" style="display:none;margin-top:10px"></div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ── Loading Section ────────────────────────────────── -->
+    <section id="loadingSection" style="display:none">
+      <div class="card" style="max-width:500px;margin:40px auto">
+        <div class="card-body">
+          <div class="loader-wrap visible">
+            <div class="loader-ring"></div>
+            <p style="font-family:var(--font-display);font-size:1.1rem;font-weight:700">Analysing passwords…</p>
+            <div class="loader-steps">
+              <div class="loader-step" id="step-parse">
+                <span class="step-icon"><i class="fa-regular fa-square"></i></span> Parsing dataset
+              </div>
+              <div class="loader-step" id="step-detect">
+                <span class="step-icon"><i class="fa-regular fa-square"></i></span> Detecting patterns
+              </div>
+              <div class="loader-step" id="step-risk">
+                <span class="step-icon"><i class="fa-regular fa-square"></i></span> Calculating risk scores
+              </div>
+              <div class="loader-step" id="step-breach">
+                <span class="step-icon"><i class="fa-regular fa-square"></i></span> Checking breach database
+              </div>
+              <div class="loader-step" id="step-ai">
+                <span class="step-icon"><i class="fa-regular fa-square"></i></span> Generating AI insights
+              </div>
+              <div class="loader-step" id="step-report">
+                <span class="step-icon"><i class="fa-regular fa-square"></i></span> Preparing report
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Results Section ────────────────────────────────── -->
+    <section id="resultsSection" style="display:none">
+
+      <!-- Header row -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:12px">
+        <h2 style="font-family:var(--font-display);font-size:1.4rem;font-weight:800;letter-spacing:-0.02em">
+          <i class="fa-solid fa-chart-bar" style="color:var(--accent);margin-right:8px"></i>Analysis Results
+        </h2>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-ghost" id="newAnalysisBtn">
+            <i class="fa-solid fa-rotate-left"></i> New Analysis
+          </button>
+          <button class="btn btn-green" id="downloadBtn" style="display:none">
+            <i class="fa-solid fa-download"></i> Download Report
+          </button>
+        </div>
+      </div>
+
+      <!-- Overview row -->
+      <div class="grid-4" style="margin-bottom:24px">
+        <div class="metric-card">
+          <div class="metric-icon"><i class="fa-solid fa-database"></i></div>
+          <div class="metric-label">Total Passwords</div>
+          <div class="metric-value" id="resTotalPw">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon"><i class="fa-solid fa-fingerprint"></i></div>
+          <div class="metric-label">Unique</div>
+          <div class="metric-value" id="resUniquePw">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon"><i class="fa-solid fa-ruler-horizontal"></i></div>
+          <div class="metric-label">Avg Length</div>
+          <div class="metric-value" id="resAvgLength">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+          <div class="metric-label">High Risk</div>
+          <div class="metric-value text-red" id="resHighRisk">—</div>
+        </div>
+      </div>
+
+      <!-- Score + distribution -->
+      <div class="grid-2" style="margin-bottom:24px">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-icon"><i class="fa-solid fa-bullseye"></i></div>
+            <span class="card-title">Risk Score</span>
+          </div>
+          <div class="card-body">
+            <div class="score-ring-wrap">
+              <div class="score-ring">
+                <svg width="120" height="120" viewBox="0 0 120 120">
+                  <circle class="score-ring-bg"   cx="60" cy="60" r="52"/>
+                  <circle class="score-ring-fill" id="scoreRingFill"
+                          cx="60" cy="60" r="52"
+                          stroke-dasharray="326.7" stroke-dashoffset="326.7"/>
+                </svg>
+                <div class="score-text">
+                  <span class="score-num" id="scoreNum">—</span>
+                  <span class="score-lbl">Risk</span>
+                </div>
+              </div>
+              <div id="riskBadge" class="risk-badge risk-medium" style="margin-top:8px">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-icon"><i class="fa-solid fa-chart-pie"></i></div>
+            <span class="card-title">Risk Distribution</span>
+          </div>
+          <div class="card-body">
+            <div class="progress-wrap">
+              <div class="progress-header">
+                <span class="progress-label text-red">
+                  <i class="fa-solid fa-circle" style="font-size:.5rem"></i> High Risk
+                </span>
+                <span class="progress-pct" id="pctHigh">—</span>
+              </div>
+              <div class="progress-track"><div class="progress-fill" id="barHigh" style="background:var(--red)"></div></div>
+            </div>
+            <div class="progress-wrap">
+              <div class="progress-header">
+                <span class="progress-label text-amber">
+                  <i class="fa-solid fa-circle" style="font-size:.5rem"></i> Medium Risk
+                </span>
+                <span class="progress-pct" id="pctMedium">—</span>
+              </div>
+              <div class="progress-track"><div class="progress-fill" id="barMedium" style="background:var(--amber)"></div></div>
+            </div>
+            <div class="progress-wrap">
+              <div class="progress-header">
+                <span class="progress-label text-green">
+                  <i class="fa-solid fa-circle" style="font-size:.5rem"></i> Low Risk
+                </span>
+                <span class="progress-pct" id="pctLow">—</span>
+              </div>
+              <div class="progress-track"><div class="progress-fill" id="barLow" style="background:var(--green)"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Patterns + Compliance -->
+      <div class="grid-2" style="margin-bottom:24px">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-icon"><i class="fa-solid fa-puzzle-piece"></i></div>
+            <span class="card-title">Detected Patterns</span>
+          </div>
+          <div class="card-body">
+            <div id="patternsWrap" class="grid-2" style="gap:10px"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-icon"><i class="fa-solid fa-clipboard-check"></i></div>
+            <span class="card-title">Compliance</span>
+          </div>
+          <div class="card-body">
+            <div id="complianceWrap"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- HIBP Breach stats -->
+      <div id="breachSection" class="card" style="display:none;margin-bottom:24px">
+        <div class="card-header">
+          <div class="card-icon" style="background:var(--red-soft);color:var(--red)">
+            <i class="fa-solid fa-skull-crossbones"></i>
+          </div>
+          <span class="card-title">Breach Statistics (HaveIBeenPwned)</span>
+        </div>
+        <div class="card-body" id="breachContainer"></div>
+      </div>
+
+      <!-- AI Insights -->
+      <div class="card" style="margin-bottom:24px">
+        <div class="card-header">
+          <div class="card-icon"><i class="fa-solid fa-robot"></i></div>
+          <span class="card-title">AI Security Insights</span>
+        </div>
+        <div class="card-body" id="insightsWrap"></div>
+      </div>
+
+      <!-- Charts -->
+      <div id="chartsGrid" class="charts-grid" style="display:none;margin-bottom:24px">
+        <div class="chart-card">
+          <div class="chart-card-title"><i class="fa-solid fa-chart-pie"></i> Risk Distribution</div>
+          <img id="chartRisk" alt="Risk chart" loading="lazy">
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-title"><i class="fa-solid fa-chart-bar"></i> Length Distribution</div>
+          <img id="chartLength" alt="Length chart" loading="lazy">
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-title"><i class="fa-solid fa-shield-halved"></i> Strength Distribution</div>
+          <img id="chartStrength" alt="Strength chart" loading="lazy">
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-title"><i class="fa-solid fa-diagram-project"></i> Pattern Breakdown</div>
+          <img id="chartPattern" alt="Pattern chart" loading="lazy">
+        </div>
+      </div>
+
+    </section>
+  </div><!-- /container -->
+</main>
+
+<!-- Toast container -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- Footer -->
+<footer>
+  <p>
+    <i class="fa-solid fa-shield-halved" style="color:var(--accent)"></i>
+    SecurePass AI &copy; 2026 — Built for security teams
+  </p>
+</footer>
+
+<script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+<script src="{{ url_for('static', filename='js/auth.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hibp.js') }}"></script>
+<script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

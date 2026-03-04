@@ -1,0 +1,142 @@
+/* ============================================================
+   SECUREPASS AI — HIBP STYLES
+   Severity bars, breach indicators, stats container
+   ============================================================ */
+
+/* ── Severity breakdown ──────────────────────────────────── */
+.hibp-severity-breakdown {
+  margin-top: 16px;
+  padding: 18px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.hibp-severity-breakdown h4 {
+  font-family: var(--font-display);
+  font-size: 0.82rem; font-weight: 600;
+  color: var(--text-muted); margin-bottom: 14px;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  display: flex; align-items: center; gap: 7px;
+}
+.hibp-severity-breakdown h4::before {
+  content: ''; display: block;
+  width: 3px; height: 14px;
+  background: var(--accent); border-radius: 2px;
+}
+.severity-bars { display: flex; flex-direction: column; gap: 12px; }
+
+.severity-bar-item {
+  display: grid;
+  grid-template-columns: 90px 1fr 48px;
+  gap: 10px; align-items: center;
+}
+.severity-label { font-size: 0.76rem; font-weight: 600; display: flex; align-items: center; gap: 5px; }
+.severity-track {
+  height: 8px; background: var(--bg-card);
+  border-radius: 4px; overflow: hidden;
+}
+.severity-fill {
+  height: 100%; border-radius: 4px;
+  transition: width 1s cubic-bezier(0.4,0,0.2,1);
+  width: 0;
+}
+.severity-pct { font-size: 0.72rem; color: var(--text-muted); text-align: right; font-family: var(--font-display); }
+
+/* ── Single password breach indicator ───────────────────── */
+.hibp-result-box {
+  padding: 14px 16px; border-radius: 12px;
+  font-size: 0.84rem; display: flex;
+  align-items: flex-start; gap: 12px;
+  line-height: 1.55;
+}
+.hibp-result-box i { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+.hibp-safe {
+  background: var(--green-soft);
+  border: 1px solid var(--green);
+  color: var(--green);
+}
+.hibp-breached-critical { background: rgba(255,69,96,0.15);  border: 1px solid var(--red);   color: var(--red); }
+.hibp-breached-high     { background: rgba(255,179,64,0.15); border: 1px solid var(--amber); color: var(--amber); }
+.hibp-breached-medium   { background: rgba(255,179,64,0.10); border: 1px solid var(--amber); color: var(--amber); }
+.hibp-breached-low      { background: rgba(255,179,64,0.08); border: 1px solid var(--amber); color: var(--amber); }
+.hibp-error             { background: var(--bg-elevated);    border: 1px solid var(--border); color: var(--text-muted); }
+
+.hibp-result-box strong { font-weight: 700; }
+.hibp-result-sub { font-size: 0.75rem; margin-top: 4px; opacity: 0.8; }
+
+/* ── Loading spinner inline ──────────────────────────────── */
+.hibp-checking {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 0.82rem; color: var(--text-muted); padding: 12px 0;
+}
+.hibp-spinner {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+
+/* ── Severity breakdown ──────────────────────────────────── */
+.hibp-severity-breakdown {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.hibp-severity-breakdown h4 {
+  font-family: var(--font-display);
+  font-size: 0.85rem; font-weight: 600;
+  color: var(--text-muted); margin-bottom: 12px;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+.severity-bars { display: flex; flex-direction: column; gap: 10px; }
+
+.severity-bar-item {
+  display: grid;
+  grid-template-columns: 80px 1fr 48px;
+  gap: 10px; align-items: center;
+}
+.severity-label { font-size: 0.76rem; font-weight: 600; }
+.severity-track {
+  height: 8px; background: var(--bg-card);
+  border-radius: 4px; overflow: hidden;
+}
+.severity-fill {
+  height: 100%; border-radius: 4px;
+  transition: width 1s cubic-bezier(0.4,0,0.2,1);
+  width: 0;
+}
+.severity-pct { font-size: 0.72rem; color: var(--text-muted); text-align: right; }
+
+/* ── Single password breach indicator ───────────────────── */
+.hibp-result-box {
+  padding: 12px 14px; border-radius: 10px;
+  font-size: 0.82rem; display: flex;
+  align-items: flex-start; gap: 10px;
+  line-height: 1.5;
+}
+.hibp-safe {
+  background: var(--green-soft);
+  border: 1px solid var(--green);
+  color: var(--green);
+}
+.hibp-breached-critical { background: rgba(255,69,96,0.15); border: 1px solid var(--red); color: var(--red); }
+.hibp-breached-high     { background: rgba(255,179,64,0.15); border: 1px solid var(--amber); color: var(--amber); }
+.hibp-breached-medium   { background: rgba(255,179,64,0.1);  border: 1px solid var(--amber); color: var(--amber); }
+.hibp-breached-low      { background: rgba(255,179,64,0.08); border: 1px solid var(--amber); color: var(--amber); }
+.hibp-error             { background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-muted); }
+
+.hibp-result-box strong { font-weight: 700; }
+.hibp-result-sub { font-size: 0.75rem; margin-top: 4px; opacity: 0.8; }
+
+/* ── Loading spinner inline ──────────────────────────────── */
+.hibp-checking {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.8rem; color: var(--text-muted); padding: 10px 0;
+}
+.hibp-spinner {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  animation: spin 0.7s linear infinite;
+}

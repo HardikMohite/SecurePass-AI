@@ -1,0 +1,48 @@
+# SecurePass AI — Python Dependencies
+# Generated to match all modules in the codebase after refactoring.
+# Install with: pip install -r requirements.txt
+
+# ── Web framework ─────────────────────────────────────────────────
+Flask==3.0.3
+Flask-Login==0.6.3
+Flask-SQLAlchemy==3.1.1
+Flask-WTF==1.2.1          # CSRF protection (/api/csrf-token)
+Flask-Limiter==3.8.0       # Rate limiting on /api/analyze and auth routes
+Werkzeug==3.0.3            # secure_filename, password hashing
+
+# ── Database ──────────────────────────────────────────────────────
+SQLAlchemy==2.0.35
+# For production PostgreSQL (uncomment when deploying):
+# psycopg2-binary==2.9.9
+
+# ── AI / LLM ─────────────────────────────────────────────────────
+groq==0.9.0                # Groq API client (ai_engine.py)
+
+# ── HTTP / Networking ─────────────────────────────────────────────
+requests==2.32.3           # HIBP API calls (hibp_checker.py)
+urllib3==2.2.3             # Transitive dep of requests — pin for security
+
+# ── PDF Report Generation ─────────────────────────────────────────
+reportlab==4.2.2           # PDF generation (pdf_gen.py)
+
+# ── Chart / Visualisation ─────────────────────────────────────────
+matplotlib==3.9.2          # Chart generation (charts.py)
+numpy==1.26.4              # Used by matplotlib gauge chart
+
+# ── Email validation ──────────────────────────────────────────────
+email-validator==2.2.0     # auth.py registration validation
+
+# ── Environment / Config ──────────────────────────────────────────
+python-dotenv==1.0.1       # Load .env file for development
+
+# ── Rate limiter storage (production) ─────────────────────────────
+# Uncomment for Redis-backed rate limiting (recommended in production):
+# redis==5.0.8
+# Flask-Limiter[redis]==3.8.0
+
+# ── WSGI Server (production) ──────────────────────────────────────
+gunicorn==22.0.0           # Production WSGI server
+# Alternatively: waitress==3.0.0  (Windows-compatible)
+
+# ── Security extras ───────────────────────────────────────────────
+cryptography==43.0.1       # Secure token generation helpers
