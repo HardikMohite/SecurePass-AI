@@ -298,7 +298,11 @@
     renderInsights(data.ai_insights);
 
     // Charts
-    renderCharts(data.charts);
+    renderCharts(data);
+
+    // Attack Simulation
+    // Attack Simulation — store data, wire up button
+    initAttackSim(data.attack_scenarios, data.overview);
 
     // Download button
     const dl = $('downloadBtn');
@@ -390,25 +394,450 @@
       </div>`).join('');
   }
 
-  function renderCharts(charts) {
-    if (!charts) return;
-    const map = {
-      chartRisk:    charts.risk_pie,
-      chartLength:  charts.length_distribution,
-      chartStrength:charts.strength_distribution,
-      chartPattern: charts.pattern_distribution,
-    };
-    Object.entries(map).forEach(([id, path]) => {
-      if (!path) return;
-      const el = $(id);
-      if (!el) return;
-      let src = path.replace(/^frontend\/static\//, '');
-      if (!src.startsWith('/static/')) src = '/static/' + src;
-      el.src = src;
-      el.onerror = () => { el.parentElement.style.display = 'none'; };
+  function initAttackSim(scenarios, overview) {
+    const btn = document.getElementById('btnRunSim');
+    if (!btn) return;
+
+    // Store on window so button handler can read them
+    window._simScenarios = scenarios || [];
+    window._simOverview  = overview  || {};
+
+    // Reset terminal to idle state
+    const term = document.getElementById('attackTerminal');
+    if (term) {
+      term.innerHTML = '<div class="t-line t-muted"><span>// Ready. Dataset loaded: <span class="t-success">' +
+        (overview && overview.total_passwords ? overview.total_passwords.toLocaleString() : '?') +
+        ' passwords</span>. Click EXECUTE SIMULATION to begin. <span class="t-cursor"></span></span></div>';
+    }
+    const results = document.getElementById('attackResults');
+    if (results) { results.style.display = 'none'; results.innerHTML = ''; }
+
+    btn.disabled = false;
+    btn.onclick  = () => runSimAnimation(window._simScenarios, window._simOverview);
+  }
+
+  function runSimAnimation(scenarios, overview) {
+    const btn  = document.getElementById('btnRunSim');
+    const term = document.getElementById('attackTerminal');
+    if (!btn || !term) return;
+
+    btn.disabled = true;
+    btn.textContent = '⏳ RUNNING...';
+
+    const total   = overview && overview.total_passwords ? overview.total_passwords : 0;
+    const unique  = overview && overview.unique_passwords ? overview.unique_passwords : 0;
+    const avgLen  = overview && overview.average_length  ? overview.average_length  : 0;
+    const uniquePct = total > 0 ? ((unique / total) * 100).toFixed(1) : 0;
+
+    function riskLabel(pct) {
+      if (pct >= 40) return ['CRITICAL', 'badge-critical'];
+      if (pct >= 25) return ['HIGH',     'badge-high'];
+      if (pct >= 10) return ['MEDIUM',   'badge-medium'];
+      return               ['LOW',       'badge-low'];
+    }
+    function barColor(pct) {
+      if (pct >= 40) return '#f85149';
+      if (pct >= 25) return '#f0883e';
+      if (pct >= 10) return '#d29922';
+      return '#3fb950';
+    }
+
+    // Build list of lines to print
+    const lines = [
+      { text: '> Initialising SecurePass Attack Engine v1.0...', cls: 't-prompt', badge: ['OK', 'badge-ok'], delay: 350 },
+      { text: `> Dataset loaded: ${total.toLocaleString()} passwords detected`, cls: 't-info', badge: ['OK', 'badge-ok'], delay: 380 },
+      { text: `> Unique passwords: ${unique.toLocaleString()} (${uniquePct}% unique)`, cls: 't-info', badge: ['OK', 'badge-ok'], delay: 360 },
+      { text: `> Average password length: ${avgLen} characters`, cls: 't-info', badge: ['OK', 'badge-ok'], delay: 340 },
+      { text: '> ─────────────────────────────────────────────', cls: 't-muted', delay: 250 },
+    ];
+
+    scenarios.forEach((s, i) => {
+      const pct   = parseFloat(s.probability) || 0;
+      const cnt   = s.count  != null ? s.count  : '?';
+      const [rl, bc] = riskLabel(pct);
+      lines.push({ text: `> [${i+1}/${scenarios.length}] Running ${s.name}...`, cls: 't-prompt', badge: ['RUNNING', 'badge-running'], delay: 420 });
+      lines.push({ text: `> Scanning ${total.toLocaleString()} passwords — ${s.description}`, cls: 't-muted', delay: 500 });
+      lines.push({ text: `> Matched: ${cnt} passwords vulnerable`, cls: pct >= 25 ? 't-danger' : 't-warn', delay: 480 });
+      lines.push({ text: `> Vulnerability: ${pct}%`, cls: pct >= 40 ? 't-danger' : pct >= 10 ? 't-warn' : 't-success', badge: [rl, bc], delay: 350 });
+      lines.push({ text: '> ─────────────────────────────────────────────', cls: 't-muted', delay: 200 });
     });
-    const cg = $('chartsGrid');
-    if (cg) cg.style.display = 'grid';
+
+    // Verdict
+    const top = scenarios.length
+      ? scenarios.reduce((a, b) => (parseFloat(a.probability) > parseFloat(b.probability) ? a : b))
+      : null;
+    if (top) {
+      const topPct = parseFloat(top.probability);
+      const [rl, bc] = riskLabel(topPct);
+      lines.push({ text: '> SIMULATION COMPLETE', cls: 't-success', badge: ['OK', 'badge-ok'], delay: 300 });
+      lines.push({ text: `> Highest exposure: ${top.name} (${topPct}%)`, cls: 't-warn', delay: 300 });
+      lines.push({ text: `> Est. vulnerable: ${top.count != null ? top.count.toLocaleString() : '?'} of ${total.toLocaleString()} passwords`, cls: 't-danger', delay: 300 });
+      lines.push({ text: `> VERDICT: ${rl} RISK — remediation recommended`, cls: topPct >= 40 ? 't-danger' : topPct >= 10 ? 't-warn' : 't-success', badge: [rl, bc], delay: 400 });
+    }
+
+    // Clear terminal, print lines one by one
+    term.innerHTML = '';
+    let cumDelay = 0;
+    lines.forEach(({ text, cls, badge, delay }) => {
+      cumDelay += delay;
+      setTimeout(() => {
+        const div = document.createElement('div');
+        div.className = 't-line';
+        const span = document.createElement('span');
+        span.className = cls || 't-prompt';
+        span.textContent = text;
+        div.appendChild(span);
+        if (badge) {
+          const b = document.createElement('span');
+          b.className = 't-badge ' + badge[1];
+          b.textContent = badge[0];
+          div.appendChild(b);
+        }
+        term.appendChild(div);
+        term.scrollTop = term.scrollHeight;
+      }, cumDelay);
+    });
+
+    // After all lines, show results bars
+    setTimeout(() => {
+      btn.disabled    = false;
+      btn.textContent = '↺  RUN AGAIN';
+      showSimResults(scenarios);
+    }, cumDelay + 600);
+  }
+
+  function showSimResults(scenarios) {
+    const el = document.getElementById('attackResults');
+    if (!el) return;
+
+    function riskLabel(pct) {
+      if (pct >= 40) return ['CRITICAL', '#f85149'];
+      if (pct >= 25) return ['HIGH',     '#f0883e'];
+      if (pct >= 10) return ['MEDIUM',   '#d29922'];
+      return               ['LOW',       '#3fb950'];
+    }
+
+    let html = '<div style="margin-bottom:10px;font-size:0.75rem;color:#484f58;font-family:\'Courier New\',monospace;letter-spacing:0.05em;">// RESULTS</div>';
+    scenarios.forEach(s => {
+      const pct = parseFloat(s.probability) || 0;
+      const [rl, col] = riskLabel(pct);
+      html += `
+        <div class="sim-bar-row">
+          <div class="sim-bar-label">${s.name}</div>
+          <div class="sim-bar-track">
+            <div class="sim-bar-fill" data-pct="${pct}" style="background:${col}"></div>
+          </div>
+          <div class="sim-bar-pct" style="color:${col}">${pct}%</div>
+          <div style="width:72px;font-size:0.9rem;font-weight:700;color:${col};font-family:'Courier New',monospace">${rl}</div>
+        </div>`;
+    });
+
+    // Verdict
+    if (scenarios.length) {
+      const top    = scenarios.reduce((a, b) => (parseFloat(a.probability) > parseFloat(b.probability) ? a : b));
+      const topPct = parseFloat(top.probability);
+      const [rl, col] = riskLabel(topPct);
+      const vClass = topPct >= 40 ? 'verdict-critical' : topPct >= 25 ? 'verdict-high' : topPct >= 10 ? 'verdict-medium' : 'verdict-low';
+      html += `<div class="sim-verdict ${vClass}">
+        &#9654; VERDICT: ${rl} RISK &mdash; Highest exposure: ${top.name} at ${topPct}%
+        &nbsp;(${top.count != null ? top.count.toLocaleString() : '?'} passwords affected)
+      </div>`;
+    }
+
+    el.innerHTML  = html;
+    el.style.display = 'block';
+
+    // Animate bars after brief paint delay
+    setTimeout(() => {
+      el.querySelectorAll('.sim-bar-fill').forEach(bar => {
+        bar.style.width = bar.dataset.pct + '%';
+      });
+    }, 80);
+  }
+
+  function renderAttackSim(scenarios) {
+    // Legacy no-op — initAttackSim is used instead
+  }
+
+  function renderCharts(data) {
+    const grid = $('chartsGrid');
+    if (grid) grid.style.display = 'grid';
+
+    // ── Shared Chart.js defaults (dark theme) ──────────────────────────
+    const FONT       = "'Inter', 'Segoe UI', sans-serif";
+    const C_TEXT     = '#c9d1d9';
+    const C_MUTED    = '#484f58';
+    const C_GRID     = 'rgba(255,255,255,0.06)';
+    const C_RED      = '#f85149';
+    const C_AMBER    = '#d29922';
+    const C_GREEN    = '#3fb950';
+    const C_CYAN     = '#00d4ff';
+    const C_BLUE     = '#58a6ff';
+    const C_PURPLE   = '#bc8cff';
+    const C_ORANGE   = '#f0883e';
+    const C_TEAL     = '#39d353';
+
+    Chart.defaults.color          = C_TEXT;
+    Chart.defaults.font.family    = FONT;
+    Chart.defaults.font.size      = 13;
+
+    const tooltipDefaults = {
+      backgroundColor: '#161b22',
+      borderColor:     '#30363d',
+      borderWidth:     1,
+      titleColor:      '#e6edf3',
+      bodyColor:       C_TEXT,
+      padding:         12,
+      cornerRadius:    8,
+      displayColors:   true,
+      boxPadding:      4,
+    };
+
+    function destroyIfExists(key) {
+      if (window['_ch_' + key] instanceof Chart) {
+        window['_ch_' + key].destroy();
+      }
+    }
+
+    // ── 1. Risk Distribution — Doughnut ───────────────────────────────
+    destroyIfExists('risk');
+    const rd   = data.risk_distribution || {};
+    const high = rd.high || rd['High Risk']   || 0;
+    const med  = rd.medium || rd['Medium Risk'] || 0;
+    const low  = rd.low  || rd['Low Risk']    || 0;
+    const ctxRisk = document.getElementById('chartRisk');
+    if (ctxRisk && (high + med + low) > 0) {
+      window._ch_risk = new Chart(ctxRisk, {
+        type: 'doughnut',
+        data: {
+          labels: ['High Risk', 'Medium Risk', 'Low Risk'],
+          datasets: [{
+            data: [high, med, low],
+            backgroundColor: [
+              'rgba(248,81,73,0.85)',
+              'rgba(210,153,34,0.85)',
+              'rgba(63,185,80,0.85)',
+            ],
+            borderColor: [C_RED, C_AMBER, C_GREEN],
+            borderWidth: 2,
+            hoverOffset: 10,
+          }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          cutout: '68%',
+          animation: { animateRotate: true, duration: 900 },
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: { padding: 16, boxWidth: 12, borderRadius: 4, useBorderRadius: true },
+            },
+            tooltip: {
+              ...tooltipDefaults,
+              callbacks: {
+                label: ctx => {
+                  const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                  const pct   = total ? ((ctx.parsed / total) * 100).toFixed(1) : 0;
+                  return `  ${ctx.label}: ${ctx.parsed.toLocaleString()} (${pct}%)`;
+                },
+              },
+            },
+          },
+        },
+      });
+    }
+
+    // ── 2. Length Distribution — Bar ──────────────────────────────────
+    destroyIfExists('length');
+    const stats   = data.dataset_stats || {};
+    const lenDist = data.patterns && data.patterns.length_distribution
+      ? data.patterns.length_distribution
+      : null;
+
+    const ctxLen = document.getElementById('chartLength');
+    if (ctxLen) {
+      // Build buckets from raw length_distribution or fall back to overview
+      let bucketLabels, bucketData;
+      if (lenDist && typeof lenDist === 'object') {
+        bucketLabels = Object.keys(lenDist);
+        bucketData   = Object.values(lenDist);
+      } else {
+        const ov = data.overview || {};
+        bucketLabels = ['< 8', '8–11', '12–15', '16+'];
+        const total  = ov.total_passwords || 1;
+        const weak   = ov.weak_passwords  || 0;
+        const med2   = ov.medium_passwords || 0;
+        const strong = ov.strong_passwords || 0;
+        bucketData   = [weak, Math.round(med2 * 0.6), Math.round(med2 * 0.4), strong];
+      }
+      const barColors = bucketData.map((_, i) => {
+        const palette = [C_RED, C_AMBER, C_CYAN, C_GREEN];
+        return palette[i % palette.length] + 'cc';
+      });
+      const barBorder = bucketData.map((_, i) => {
+        const palette = [C_RED, C_AMBER, C_CYAN, C_GREEN];
+        return palette[i % palette.length];
+      });
+      window._ch_length = new Chart(ctxLen, {
+        type: 'bar',
+        data: {
+          labels: bucketLabels,
+          datasets: [{
+            label: 'Passwords',
+            data:  bucketData,
+            backgroundColor: barColors,
+            borderColor:     barBorder,
+            borderWidth: 2,
+            borderRadius: 6,
+            borderSkipped: false,
+          }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          animation: { duration: 800, easing: 'easeOutQuart' },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              ...tooltipDefaults,
+              callbacks: { label: ctx => `  ${ctx.parsed.y.toLocaleString()} passwords` },
+            },
+          },
+          scales: {
+            x: {
+              grid: { color: C_GRID },
+              ticks: { color: C_TEXT },
+            },
+            y: {
+              grid: { color: C_GRID },
+              ticks: { color: C_TEXT, precision: 0 },
+              beginAtZero: true,
+            },
+          },
+        },
+      });
+    }
+
+    // ── 3. Character Coverage — Radar ─────────────────────────────────
+    destroyIfExists('strength');
+    const ctxStr = document.getElementById('chartStrength');
+    if (ctxStr) {
+      const comp = (data.patterns && data.patterns.character_composition) ? data.patterns.character_composition : {};
+      const radarData = [
+        comp.uppercase ? (comp.uppercase.percentage || 0) : 0,
+        comp.lowercase ? (comp.lowercase.percentage || 0) : 0,
+        comp.digits    ? (comp.digits.percentage    || 0) : 0,
+        comp.special   ? (comp.special.percentage   || 0) : 0,
+        data.overview  ? Math.min(100, (data.overview.average_length || 0) * 5) : 0,
+      ];
+      window._ch_strength = new Chart(ctxStr, {
+        type: 'radar',
+        data: {
+          labels: ['Uppercase', 'Lowercase', 'Digits', 'Special Chars', 'Length Score'],
+          datasets: [{
+            label: 'Coverage %',
+            data:  radarData,
+            backgroundColor: 'rgba(0,212,255,0.12)',
+            borderColor:     C_CYAN,
+            borderWidth:     2,
+            pointBackgroundColor: C_CYAN,
+            pointBorderColor:    '#0d1117',
+            pointHoverBackgroundColor: '#fff',
+            pointRadius: 5,
+            pointHoverRadius: 7,
+          }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          animation: { duration: 900 },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              ...tooltipDefaults,
+              callbacks: { label: ctx => `  ${ctx.label}: ${ctx.parsed.r.toFixed(1)}%` },
+            },
+          },
+          scales: {
+            r: {
+              min: 0, max: 100,
+              grid:      { color: C_GRID },
+              angleLines: { color: C_GRID },
+              pointLabels: { color: C_TEXT, font: { size: 12 } },
+              ticks: {
+                display: true, stepSize: 25,
+                color: C_MUTED,
+                backdropColor: 'transparent',
+              },
+            },
+          },
+        },
+      });
+    }
+
+    // ── 4. Pattern Breakdown — Horizontal Bar ─────────────────────────
+    destroyIfExists('pattern');
+    const ctxPat = document.getElementById('chartPattern');
+    if (ctxPat) {
+      const p = (data.patterns && data.patterns.patterns) ? data.patterns.patterns : (data.patterns || {});
+      const patternMap = [
+        { label: 'Dictionary Words',     key: 'dictionary_based',      color: C_RED    },
+        { label: 'Name Based',           key: 'name_based',            color: C_ORANGE },
+        { label: 'Numeric Suffix',       key: 'numeric_suffix',        color: C_AMBER  },
+        { label: 'Keyboard Walk',        key: 'keyboard_walk',         color: C_CYAN   },
+        { label: 'Capitalisation Misuse',key: 'capitalization_misuse', color: C_BLUE   },
+        { label: 'Leet Speak',           key: 'leetspeak',             color: C_PURPLE },
+        { label: 'Sequential Numbers',   key: 'sequential_numbers',    color: C_TEAL   },
+      ];
+      const filtered = patternMap.filter(pm => {
+        const v = p[pm.key];
+        return v && (v.percentage > 0 || v.count > 0);
+      });
+      const patLabels = filtered.map(pm => pm.label);
+      const patData   = filtered.map(pm => {
+        const v = p[pm.key];
+        return v ? (v.percentage || 0) : 0;
+      });
+      const patColors = filtered.map(pm => pm.color + 'cc');
+      const patBorder = filtered.map(pm => pm.color);
+
+      window._ch_pattern = new Chart(ctxPat, {
+        type: 'bar',
+        data: {
+          labels: patLabels.length ? patLabels : ['No patterns detected'],
+          datasets: [{
+            label: '% of passwords',
+            data:  patData.length  ? patData  : [0],
+            backgroundColor: patColors.length ? patColors : ['rgba(72,79,88,0.5)'],
+            borderColor:     patBorder.length ? patBorder : [C_MUTED],
+            borderWidth: 2,
+            borderRadius: 6,
+            borderSkipped: false,
+          }],
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          indexAxis: 'y',
+          animation: { duration: 800, easing: 'easeOutQuart' },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              ...tooltipDefaults,
+              callbacks: { label: ctx => `  ${ctx.parsed.x.toFixed(1)}% of passwords` },
+            },
+          },
+          scales: {
+            x: {
+              min: 0, max: 100,
+              grid:  { color: C_GRID },
+              ticks: { color: C_TEXT, callback: v => v + '%' },
+            },
+            y: {
+              grid:  { display: false },
+              ticks: { color: C_TEXT, font: { size: 12 } },
+            },
+          },
+        },
+      });
+    }
   }
 
   /* ================================================================

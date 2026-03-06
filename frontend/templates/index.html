@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/hibp.css') }}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -348,6 +349,30 @@
         <div class="card-body" id="breachContainer"></div>
       </div>
 
+      <!-- Attack Simulation Lab -->
+      <div id="attackSimLab">
+        <div class="lab-titlebar">
+          <div class="lab-dots">
+            <span class="dot-r"></span>
+            <span class="dot-y"></span>
+            <span class="dot-g"></span>
+          </div>
+          <span class="lab-title">SecurePass // Attack Simulation Lab &nbsp;—&nbsp; v1.0 &nbsp;[EDUCATIONAL]</span>
+        </div>
+        <div class="lab-body">
+          <div class="lab-controls">
+            <button id="btnRunSim">&#9654;&nbsp; EXECUTE SIMULATION</button>
+            <div class="lab-disclaimer">
+              &#9888; Educational simulation only — no actual cracking is performed. Results are based on pattern matching against your dataset.
+            </div>
+          </div>
+          <div id="attackTerminal">
+            <div class="t-line t-muted"><span>// Ready. Click EXECUTE SIMULATION to begin. <span class="t-cursor"></span></span></div>
+          </div>
+          <div id="attackResults"></div>
+        </div>
+      </div>
+
       <!-- AI Insights -->
       <div class="card" style="margin-bottom:24px">
         <div class="card-header">
@@ -357,23 +382,23 @@
         <div class="card-body" id="insightsWrap"></div>
       </div>
 
-      <!-- Charts -->
+      <!-- Charts — interactive Chart.js -->
       <div id="chartsGrid" class="charts-grid" style="display:none;margin-bottom:24px">
         <div class="chart-card">
           <div class="chart-card-title"><i class="fa-solid fa-chart-pie"></i> Risk Distribution</div>
-          <img id="chartRisk" alt="Risk chart" loading="lazy">
+          <div style="position:relative;height:260px"><canvas id="chartRisk"></canvas></div>
         </div>
         <div class="chart-card">
           <div class="chart-card-title"><i class="fa-solid fa-chart-bar"></i> Length Distribution</div>
-          <img id="chartLength" alt="Length chart" loading="lazy">
+          <div style="position:relative;height:260px"><canvas id="chartLength"></canvas></div>
         </div>
         <div class="chart-card">
-          <div class="chart-card-title"><i class="fa-solid fa-shield-halved"></i> Strength Distribution</div>
-          <img id="chartStrength" alt="Strength chart" loading="lazy">
+          <div class="chart-card-title"><i class="fa-solid fa-shield-halved"></i> Character Coverage</div>
+          <div style="position:relative;height:260px"><canvas id="chartStrength"></canvas></div>
         </div>
         <div class="chart-card">
           <div class="chart-card-title"><i class="fa-solid fa-diagram-project"></i> Pattern Breakdown</div>
-          <img id="chartPattern" alt="Pattern chart" loading="lazy">
+          <div style="position:relative;height:260px"><canvas id="chartPattern"></canvas></div>
         </div>
       </div>
 

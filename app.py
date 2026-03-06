@@ -17,6 +17,7 @@ FIX SUMMARY:
 """
 
 import os
+import sys
 import logging
 import tempfile
 from io import BytesIO
@@ -46,6 +47,11 @@ from models import Analysis, User, db
 from reports.charts import generate_charts
 from reports.pdf_gen import generate_pdf_report
 from utils.validators import validate_single_password, validate_uploaded_file
+
+# ── Risk distribution key constants ─────────────────────────────────────── #
+_RISK_HIGH   = 'High Risk'
+_RISK_MEDIUM = 'Medium Risk'
+_RISK_LOW    = 'Low Risk'
 
 
 def create_app(config_class=None):
@@ -181,19 +187,8 @@ def register_page():
     return render_template('register.html')
 
 
-@app.route('/test-toggle')
-def test_toggle():
-    return render_template('test toggle.html')
-
-
 @app.route('/hibp-demo')
 def hibp_demo():
-    # Render the main index which already contains HIBP functionality,
-    # or a dedicated template if one exists.
-    import os as _os
-    tmpl_path = _os.path.join(app.template_folder, 'hibp_demo.html')
-    if _os.path.exists(tmpl_path):
-        return render_template('hibp_demo.html')
     return render_template('index.html')
 
 
@@ -277,9 +272,63 @@ def analyze():
         compliance    = map_to_standards(patterns, risk_data.get('score', 0))
         ai_response   = generate_insights(dataset_stats, patterns, risk_data, policy_impact, compliance)
 
-        ai_insights     = ai_response.get('security_insights', [])
+        ai_insights      = ai_response.get('security_insights', [])
         attack_scenarios = ai_response.get('attack_scenarios', [])
         recommended_policy = ai_response.get('recommended_password_policy')
+
+        # ── Attack Simulation (merges with AI attack_scenarios) ──────────── #
+        try:
+            _sim_path = os.path.join(os.path.dirname(__file__), 'backend')
+            if _sim_path not in sys.path:
+                sys.path.insert(0, _sim_path)
+            from attack_simulator import AttackSimulator
+            _sim = AttackSimulator(passwords)
+            _sim_results = _sim.run_all()
+            _total_pw    = _sim_results['total_analysed']
+            def _count(pct): return round(pct / 100 * _total_pw)
+            attack_scenarios = [
+                {
+                    'name':        'Dictionary Attack',
+                    'key':         'dictionary_attack',
+                    'probability': _sim_results['dictionary_attack'],
+                    'count':       _count(_sim_results['dictionary_attack']),
+                    'total':       _total_pw,
+                    'description': 'Passwords found in known wordlists',
+                },
+                {
+                    'name':        'Keyboard Walk Attack',
+                    'key':         'keyboard_walk_attack',
+                    'probability': _sim_results['keyboard_walk_attack'],
+                    'count':       _count(_sim_results['keyboard_walk_attack']),
+                    'total':       _total_pw,
+                    'description': 'Sequential keyboard patterns (qwerty, 123456)',
+                },
+                {
+                    'name':        'Pattern Attack',
+                    'key':         'pattern_attack',
+                    'probability': _sim_results['pattern_attack'],
+                    'count':       _count(_sim_results['pattern_attack']),
+                    'total':       _total_pw,
+                    'description': 'Word + number combinations (password123)',
+                },
+                {
+                    'name':        'Brute Force Estimate',
+                    'key':         'brute_force_estimate',
+                    'probability': _sim_results['brute_force_estimate'],
+                    'count':       _count(_sim_results['brute_force_estimate']),
+                    'total':       _total_pw,
+                    'description': 'Passwords short enough to brute-force quickly',
+                },
+            ]
+            app.logger.info(
+                'Attack simulation — dict=%.1f%% walk=%.1f%% pattern=%.1f%% brute=%.1f%%',
+                _sim_results['dictionary_attack'],
+                _sim_results['keyboard_walk_attack'],
+                _sim_results['pattern_attack'],
+                _sim_results['brute_force_estimate'],
+            )
+        except Exception:
+            app.logger.warning('Attack simulation failed', exc_info=True)
 
         password_examples = None
         if recommended_policy:
@@ -293,9 +342,9 @@ def analyze():
             'unique_passwords': dataset_stats.get('unique_passwords', 0),
             'average_length':   round(dataset_stats.get('average_length', 0), 1),
             'risk_score':       round(risk_data.get('score', 0), 1),
-            'weak_passwords':   risk_data.get('distribution', {}).get('High Risk', 0),
-            'medium_passwords': risk_data.get('distribution', {}).get('Medium Risk', 0),
-            'strong_passwords': risk_data.get('distribution', {}).get('Low Risk', 0),
+            'weak_passwords':   risk_data.get('distribution', {}).get(_RISK_HIGH, 0),
+            'medium_passwords': risk_data.get('distribution', {}).get(_RISK_MEDIUM, 0),
+            'strong_passwords': risk_data.get('distribution', {}).get(_RISK_LOW, 0),
         }
 
         _dist = risk_data.get('distribution', {})
@@ -304,12 +353,12 @@ def analyze():
             'risk_level':                 risk_data.get('risk_level', 'Unknown'),
             # Both key formats so JS (.high/.medium/.low) and PDF (High Risk/...) both work
             'risk_distribution': {
-                'high':        _dist.get('High Risk', 0),
-                'medium':      _dist.get('Medium Risk', 0),
-                'low':         _dist.get('Low Risk', 0),
-                'High Risk':   _dist.get('High Risk', 0),
-                'Medium Risk': _dist.get('Medium Risk', 0),
-                'Low Risk':    _dist.get('Low Risk', 0),
+                'high':        _dist.get(_RISK_HIGH, 0),
+                'medium':      _dist.get(_RISK_MEDIUM, 0),
+                'low':         _dist.get(_RISK_LOW, 0),
+                _RISK_HIGH:   _dist.get(_RISK_HIGH, 0),
+                _RISK_MEDIUM: _dist.get(_RISK_MEDIUM, 0),
+                _RISK_LOW:    _dist.get(_RISK_LOW, 0),
             },
             'patterns':                   patterns,
             'ai_insights':                ai_insights,
@@ -356,7 +405,7 @@ def analyze():
 
         return jsonify(response_data), 200
 
-    except Exception as exc:
+    except Exception:
         app.logger.exception('Unhandled error in /api/analyze')
         return jsonify({'error': 'An error occurred during analysis. Please try again.'}), 500
 
@@ -500,11 +549,11 @@ def _assess_single_password(password: str) -> dict:
     score = min(score, 100)  # cap at 100
 
     if length < 8 or score < 50:
-        risk_level = 'High Risk'
+        risk_level = _RISK_HIGH
     elif score < 75:
-        risk_level = 'Medium Risk'
+        risk_level = _RISK_MEDIUM
     else:
-        risk_level = 'Low Risk'
+        risk_level = _RISK_LOW
 
     return {
         'risk_level':       risk_level,
@@ -530,7 +579,7 @@ def _password_recommendation(length, upper, lower, numbers, special) -> str:
     return f"To improve security: {', '.join(tips)}."
 
 
-def _build_report_preview(stats, patterns, risk_data, insights) -> str:
+def _build_report_preview(stats, _patterns, risk_data, insights) -> str:
     total = stats.get('total_passwords', 0)
     dist  = risk_data.get('distribution', {})
     lines = [
@@ -538,9 +587,9 @@ def _build_report_preview(stats, patterns, risk_data, insights) -> str:
         '',
         'DATASET OVERVIEW',
         f"Total Passwords : {total}",
-        f"Weak            : {dist.get('High Risk', 0)}  |  "
-        f"Medium: {dist.get('Medium Risk', 0)}  |  "
-        f"Strong: {dist.get('Low Risk', 0)}",
+        f"Weak            : {dist.get(_RISK_HIGH, 0)}  |  "
+        f"Medium: {dist.get(_RISK_MEDIUM, 0)}  |  "
+        f"Strong: {dist.get(_RISK_LOW, 0)}",
         f"Average Length  : {stats.get('average_length', 0)} characters",
         '',
         'RISK DISTRIBUTION',
