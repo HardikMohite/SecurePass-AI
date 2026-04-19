@@ -253,17 +253,9 @@ If you want to understand the security concepts used in this project:
 ## 👤 Author
 
 **Your Name**
-- GitHub: [@yourusername](https://github.com/HardikMohite)
-- LinkedIn: [Your LinkedIn](https://www.linkedin.com/in/hardik-mohite-06aa0a32b/)
+- GitHub: [HardikMohite](https://github.com/HardikMohite)
+- LinkedIn: [Hardik Mohite](https://www.linkedin.com/in/hardik-mohite-06aa0a32b/)
 
 *Built as a portfolio project during BSc Cybersecurity — Year 2*
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
-
----
 
 > ⭐ If you found this useful, consider giving it a star on GitHub!

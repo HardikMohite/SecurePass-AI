@@ -1,169 +1,131 @@
 /**
- * auth.js — Shared authentication utilities
- * Loaded via <script src="js/auth.js"> (no modules).
- * Exposes: window.Auth
+ * auth.js — SecurePass AI Shared Auth Utilities
+ * Wired to real Flask /api/auth/* endpoints.
  */
-(function (global) {
-  'use strict';
+window.Auth = (function () {
+    'use strict';
 
-  /* ── API base ──────────────────────────────────────────── */
-  const API_BASE = '/api/auth';
+    const API = '/api/auth';
+    let _csrf = null;
+    let _user = null;
 
-  /* ── API request helper ────────────────────────────────── */
-  async function apiRequest(endpoint, options = {}) {
-    const url = API_BASE + endpoint;
-    const defaults = {
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-    };
-    const config = Object.assign({}, defaults, options);
-    if (config.headers && options.headers) {
-      config.headers = Object.assign({}, defaults.headers, options.headers);
+    async function getCsrf() {
+        if (_csrf) return _csrf;
+        try {
+            const r = await fetch('/api/csrf-token', { credentials: 'include' });
+            const d = await r.json();
+            _csrf = d.csrf_token || null;
+        } catch {}
+        return _csrf;
     }
-    try {
-      const res  = await fetch(url, config);
-      const data = await res.json().catch(() => ({}));
-      return { ok: res.ok, status: res.status, data };
-    } catch (err) {
-      console.error('Auth API error:', err);
-      throw new Error('Network error. Please try again.');
+
+    async function request(endpoint, options) {
+        options = options || {};
+        const method  = (options.method || 'GET').toUpperCase();
+        const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
+        if (['POST','PUT','DELETE','PATCH'].includes(method)) {
+            const tok = await getCsrf();
+            if (tok) headers['X-CSRFToken'] = tok;
+        }
+        const res  = await fetch(API + endpoint, Object.assign({ credentials: 'include', headers }, options));
+        const data = await res.json().catch(() => ({}));
+        return { ok: res.ok, status: res.status, data };
     }
-  }
 
-  /* ── Validation ────────────────────────────────────────── */
-  function validateEmail(email) {
-    if (!email) return { valid: false, error: 'Email is required' };
-    const ok = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    return ok ? { valid: true, error: null }
-              : { valid: false, error: 'Please enter a valid email address' };
-  }
+    async function checkAuth() {
+        try {
+            const r = await fetch('/api/auth/profile', { credentials: 'include' });
+            const d = await r.json().catch(() => ({}));
+            if (r.ok && (d.user || d.email)) { _user = d.user || d; return _user; }
+        } catch {}
+        return null;
+    }
 
-  function validatePassword(password) {
-    if (!password) return { valid: false, error: 'Password is required', requirements: {}, strength: 'weak' };
+    async function login(email, password, remember) {
+        const r = await request('/login', { method: 'POST', body: JSON.stringify({ email, password, remember: !!remember }) });
+        if (r.ok) { _user = r.data.user || r.data; return { ok: true, user: _user }; }
+        return { ok: false, error: r.data.error || 'Login failed.' };
+    }
 
-    const req = {
-      length:    password.length >= 8,
-      uppercase: /[A-Z]/.test(password),
-      lowercase: /[a-z]/.test(password),
-      number:    /[0-9]/.test(password),
-      special:   /[^A-Za-z0-9]/.test(password),
-    };
+    async function register(username, email, password) {
+        const r = await request('/register', { method: 'POST', body: JSON.stringify({ username, email, password }) });
+        if (r.ok) return { ok: true };
+        return { ok: false, error: r.data.error || 'Registration failed.' };
+    }
 
-    const errors = [];
-    if (!req.length)    errors.push('At least 8 characters required');
-    if (!req.uppercase) errors.push('Add an uppercase letter');
-    if (!req.lowercase) errors.push('Add a lowercase letter');
-    if (!req.number)    errors.push('Add a number');
+    async function logout() {
+        await request('/logout', { method: 'POST' });
+        _user = null;
+    }
 
-    const score =
-      (req.length ? 1 : 0) + (req.uppercase ? 1 : 0) + (req.lowercase ? 1 : 0) +
-      (req.number ? 1 : 0) + (req.special ? 1 : 0) +
-      (password.length >= 12 ? 1 : 0) + (password.length >= 16 ? 1 : 0);
+    function validateEmail(e) {
+        if (!e) return { valid: false, error: 'Email is required' };
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)
+            ? { valid: true }
+            : { valid: false, error: 'Enter a valid email address' };
+    }
 
-    const strength = score <= 3 ? 'weak' : score <= 5 ? 'medium' : 'strong';
-    const isValid  = req.length && req.uppercase && req.lowercase && req.number;
+    function showError(msg) {
+        const el = document.getElementById('errMsg');
+        if (!el) return;
+        el.textContent = msg; el.style.display = 'block';
+    }
+    function hideError() {
+        const el = document.getElementById('errMsg');
+        if (el) el.style.display = 'none';
+    }
+    function showSuccess(msg) {
+        const el = document.getElementById('successMsg');
+        if (!el) return;
+        el.textContent = msg; el.style.display = 'block';
+    }
+    function hideSuccess() {
+        const el = document.getElementById('successMsg');
+        if (el) el.style.display = 'none';
+    }
 
-    return { valid: isValid, error: errors[0] || null, errors, requirements: req, strength };
-  }
+    // Profile page initialization
+    async function initProfilePage() {
+        const user = await checkAuth();
+        if (!user) { window.location.href = '/login'; return; }
 
-  function validatePasswordMatch(password, confirm) {
-    if (!confirm)          return { valid: false, error: 'Please confirm your password' };
-    if (password !== confirm) return { valid: false, error: 'Passwords do not match' };
-    return { valid: true, error: null };
-  }
+        const profileInfo = document.getElementById('profile-info');
+        if (profileInfo) {
+            profileInfo.innerHTML = `
+                <p><strong>Username:</strong> ${user.username || '—'}</p>
+                <p><strong>Email:</strong> ${user.email || '—'}</p>
+            `;
+        }
 
-  /* ── UI helpers ────────────────────────────────────────── */
-  function showError(msg) {
-    const el = document.getElementById('errMsg');
-    if (!el) return;
-    el.textContent = msg;
-    el.classList.add('visible');
-  }
+        const historyContainer = document.getElementById('analysis-history');
+        if (historyContainer) {
+            const r = await request('/history');
+            if (r.ok && r.data.history) {
+                if (r.data.history.length === 0) {
+                    historyContainer.innerHTML = '<p>No analyses performed yet.</p>';
+                } else {
+                    historyContainer.innerHTML = '<ul>' + r.data.history.map(item =>
+                        `<li>${item.timestamp || item.created_at}: ${item.filename} (Risk: ${item.risk_score})</li>`
+                    ).join('') + '</ul>';
+                }
+            } else {
+                historyContainer.innerHTML = '<p>Could not load analysis history.</p>';
+            }
+        }
 
-  function hideError() {
-    const el = document.getElementById('errMsg');
-    if (el) el.classList.remove('visible');
-  }
+        const logoutBtn = document.getElementById('logout-button');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', async e => {
+                e.preventDefault();
+                await logout();
+                window.location.href = '/login';
+            });
+        }
+    }
 
-  function showSuccess(msg) {
-    const el = document.getElementById('successMsg');
-    if (!el) return;
-    el.textContent = msg;
-    el.classList.add('visible');
-  }
+    if (window.location.pathname === '/profile') {
+        document.addEventListener('DOMContentLoaded', initProfilePage);
+    }
 
-  function setLoading(btnId, textId, loading, originalText) {
-    const btn = document.getElementById(btnId);
-    const txt = document.getElementById(textId);
-    if (!btn) return;
-    btn.disabled = loading;
-    if (txt) txt.textContent = loading ? 'Please wait…' : originalText;
-  }
-
-  function togglePasswordVisibility(inputId, iconEl) {
-    const inp = document.getElementById(inputId);
-    if (!inp) return;
-    inp.type = inp.type === 'password' ? 'text' : 'password';
-    if (iconEl) iconEl.textContent = inp.type === 'password' ? '👁' : '🙈';
-  }
-
-  /* ── Session storage ───────────────────────────────────── */
-  function storeUser(userData) {
-    try { sessionStorage.setItem('sp_user', JSON.stringify(userData)); } catch {}
-  }
-  function getUser() {
-    try { const d = sessionStorage.getItem('sp_user'); return d ? JSON.parse(d) : null; } catch { return null; }
-  }
-  function clearUser() {
-    try { sessionStorage.removeItem('sp_user'); } catch {}
-  }
-
-  /* ── CSRF token ────────────────────────────────────────── */
-  let _csrfCache = null;
-  async function getCsrf() {
-    if (_csrfCache) return _csrfCache;
-    try {
-      const r = await fetch('/api/csrf-token');
-      const d = await r.json();
-      _csrfCache = d.csrf_token || null;
-      return _csrfCache;
-    } catch { return null; }
-  }
-
-  /* ── Debounce ──────────────────────────────────────────── */
-  function debounce(fn, wait) {
-    let t;
-    return function (...args) {
-      clearTimeout(t);
-      t = setTimeout(() => fn.apply(this, args), wait);
-    };
-  }
-
-  /* ── Check auth ────────────────────────────────────────── */
-  async function checkAuthentication() {
-    try {
-      const r = await apiRequest('/check');
-      return r.ok && r.data.authenticated;
-    } catch { return false; }
-  }
-
-  /* ── Expose ────────────────────────────────────────────── */
-  global.Auth = {
-    apiRequest,
-    validateEmail,
-    validatePassword,
-    validatePasswordMatch,
-    showError,
-    hideError,
-    showSuccess,
-    setLoading,
-    togglePasswordVisibility,
-    storeUser,
-    getUser,
-    clearUser,
-    getCsrf,
-    debounce,
-    checkAuthentication,
-  };
-
-})(window);
+    return { getCsrf, request, checkAuth, login, register, logout, validateEmail, showError, hideError, showSuccess, hideSuccess };
+})();

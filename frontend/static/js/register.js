@@ -1,172 +1,113 @@
 /**
- * register.js — Registration page logic
- * Requires: auth.js, theme.js
+ * register.js — SecurePass AI Register Page
+ * Wired to /api/auth/register
  */
-(function () {
-  'use strict';
+document.addEventListener('DOMContentLoaded', () => {
+    const form      = document.getElementById('registerForm');
+    const btnText   = document.getElementById('regBtnText');
+    const errMsg    = document.getElementById('errMsg');
+    const pwInput   = document.getElementById('password');
+    const confInput = document.getElementById('confirm');
+    const pwEye     = document.getElementById('pwEye');
+    const confEye   = document.getElementById('confEye');
 
-  let submitting = false;
-
-  /* ── Init ──────────────────────────────────────────────── */
-  document.addEventListener('DOMContentLoaded', function () {
-    const emailInp   = document.getElementById('email');
-    const pwInp      = document.getElementById('password');
-    const confirmInp = document.getElementById('confirm');
-    const submitBtn  = document.getElementById('regSubmit');
-    const eyePw      = document.getElementById('pwEye');
-    const eyeConf    = document.getElementById('confEye');
-
-    if (emailInp) emailInp.focus();
-
-    /* Email validation */
-    if (emailInp) {
-      emailInp.addEventListener('blur', function () {
-        if (!emailInp.value) return;
-        const v = Auth.validateEmail(emailInp.value.trim());
-        emailInp.classList.toggle('valid',   v.valid);
-        emailInp.classList.toggle('invalid', !v.valid);
-      });
-      emailInp.addEventListener('input', function () {
-        emailInp.classList.remove('valid', 'invalid');
-        Auth.hideError();
-      });
-    }
-
-    /* Password strength */
-    const debouncedPw = Auth.debounce(updateStrength, 120);
-    if (pwInp) {
-      pwInp.addEventListener('input', function () {
-        debouncedPw(pwInp.value);
-        Auth.hideError();
-        if (confirmInp && confirmInp.value) validateConfirmField();
-      });
-    }
-
-    /* Confirm match */
-    if (confirmInp) {
-      confirmInp.addEventListener('input', validateConfirmField);
-    }
-
-    /* Password toggles */
-    if (eyePw)   eyePw.addEventListener('click',   function () { Auth.togglePasswordVisibility('password', eyePw); });
-    if (eyeConf) eyeConf.addEventListener('click',  function () { Auth.togglePasswordVisibility('confirm',  eyeConf); });
-
-    /* Submit */
-    if (submitBtn) submitBtn.addEventListener('click', handleRegister);
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter' && !submitting) handleRegister();
+    // Eye toggles
+    [{ btn: pwEye, inp: pwInput }, { btn: confEye, inp: confInput }].forEach(({ btn, inp }) => {
+        if (btn && inp) {
+            btn.addEventListener('click', () => {
+                const isPw = inp.type === 'password';
+                inp.type = isPw ? 'text' : 'password';
+                const icon = btn.querySelector('i') || btn.querySelector('svg');
+                if (icon) { icon.setAttribute('data-lucide', isPw ? 'eye-off' : 'eye'); if (window.lucide) lucide.createIcons(); }
+            });
+        }
     });
-  });
 
-  /* ── Strength meter ────────────────────────────────────── */
-  function updateStrength(pw) {
-    const colors  = ['var(--border)', 'var(--red)', 'var(--red)', 'var(--amber)', 'var(--green)', 'var(--green)', 'var(--green)'];
-    const labels  = ['', 'Very Weak', 'Weak', 'Fair', 'Good', 'Strong', 'Very Strong'];
-    const v       = Auth.validatePassword(pw);
-    const reqs    = v.requirements || {};
+    // Password strength indicator
+    if (pwInput) {
+        pwInput.addEventListener('input', e => {
+            const val = e.target.value;
+            const label = document.getElementById('strengthLabel');
+            const segs  = [0,1,2,3].map(i => document.getElementById('seg' + i));
+            const reqs  = [
+                { id: 'req-len', met: val.length >= 8 },
+                { id: 'req-12',  met: val.length >= 12 },
+                { id: 'req-up',  met: /[A-Z]/.test(val) },
+                { id: 'req-low', met: /[a-z]/.test(val) },
+                { id: 'req-num', met: /[0-9]/.test(val) },
+                { id: 'req-spc', met: /[^A-Za-z0-9]/.test(val) },
+            ];
 
-    const checks = [
-      reqs.length, reqs.uppercase, reqs.lowercase, reqs.number, reqs.special,
-      pw.length >= 12, pw.length >= 16,
-    ];
-    const score = checks.filter(Boolean).length;
+            reqs.forEach(req => {
+                const el = document.getElementById(req.id);
+                if (!el) return;
+                const icon = el.querySelector('i') || el.querySelector('svg');
+                el.classList.toggle('met', req.met);
+                if (icon) icon.setAttribute('data-lucide', req.met ? 'check-circle' : 'circle');
+            });
+            if (window.lucide) lucide.createIcons();
 
-    // Segments
-    for (let i = 0; i < 4; i++) {
-      const seg = document.getElementById('seg' + i);
-      if (seg) seg.style.background = i < score ? colors[score] : 'var(--border)';
+            segs.forEach(s => { if (s) s.className = 'strength-segment'; });
+            const metCount = reqs.filter(r => r.met).length;
+
+            if (val.length > 0) {
+                if (metCount <= 2) {
+                    segs[0] && segs[0].classList.add('active','danger');
+                    if (label) label.textContent = 'Token Strength: Weak';
+                } else if (metCount <= 4) {
+                    [0,1].forEach(i => segs[i] && segs[i].classList.add('active','warning'));
+                    if (label) label.textContent = 'Token Strength: Fair';
+                } else if (metCount < 6) {
+                    [0,1,2].forEach(i => segs[i] && segs[i].classList.add('active','success'));
+                    if (label) label.textContent = 'Token Strength: Good';
+                } else {
+                    segs.forEach(s => s && s.classList.add('active','success'));
+                    if (label) label.textContent = 'Token Strength: Secure';
+                }
+            } else {
+                if (label) label.textContent = 'Token Strength: None';
+            }
+        });
     }
 
-    // Label
-    const lbl = document.getElementById('strengthLabel');
-    if (lbl) {
-      lbl.textContent = pw ? labels[score] : '';
-      lbl.style.color = colors[score];
+    // Form submit
+    if (form) {
+        form.addEventListener('submit', async e => {
+            e.preventDefault();
+            const email    = document.getElementById('email')?.value?.trim();
+            const password = pwInput?.value;
+            const confirm  = confInput?.value;
+            const username = document.getElementById('username')?.value?.trim() || '';
+
+            if (!email || !password) { showErr('Email and password are required.'); return; }
+            if (password !== confirm) { showErr('Passwords do not match.'); return; }
+
+            if (btnText) btnText.textContent = 'Commissioning...';
+            const submitBtn = form.querySelector('[type="submit"]');
+            if (submitBtn) submitBtn.disabled = true;
+            if (errMsg) errMsg.style.display = 'none';
+
+            try {
+                const result = await Auth.register(username, email, password);
+                if (result.ok) {
+                    if (btnText) btnText.textContent = 'Account Created!';
+                    setTimeout(() => { window.location.href = '/'; }, 600);
+                } else {
+                    showErr(result.error || 'Registration failed. Please try again.');
+                    if (btnText) btnText.textContent = 'Create Account';
+                    if (submitBtn) submitBtn.disabled = false;
+                }
+            } catch (err) {
+                showErr('An error occurred. Please try again.');
+                if (btnText) btnText.textContent = 'Create Account';
+                if (submitBtn) submitBtn.disabled = false;
+            }
+        });
     }
 
-    // Requirement indicators
-    const reqMap = {
-      'req-len': reqs.length,
-      'req-up':  reqs.uppercase,
-      'req-low': reqs.lowercase,
-      'req-num': reqs.number,
-      'req-spc': reqs.special,
-      'req-12':  pw.length >= 12,
-    };
-    Object.entries(reqMap).forEach(function ([id, met]) {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.classList.toggle('met', !!met);
-      const icon = el.querySelector('.req-icon');
-      if (icon) icon.textContent = met ? '✓' : '○';
-    });
-  }
-
-  /* ── Confirm match ─────────────────────────────────────── */
-  function validateConfirmField() {
-    const pw      = document.getElementById('password')?.value || '';
-    const confirm = document.getElementById('confirm');
-    if (!confirm || !confirm.value) return;
-    const match = pw === confirm.value;
-    confirm.classList.toggle('valid',   match);
-    confirm.classList.toggle('invalid', !match);
-  }
-
-  /* ── Handle register ───────────────────────────────────── */
-  async function handleRegister() {
-    if (submitting) return;
-    Auth.hideError();
-
-    const email    = (document.getElementById('email')?.value || '').trim();
-    const password = document.getElementById('password')?.value || '';
-    const confirm  = document.getElementById('confirm')?.value  || '';
-
-    // Validate
-    const emailV = Auth.validateEmail(email);
-    if (!emailV.valid) { Auth.showError(emailV.error); return; }
-
-    const pwV = Auth.validatePassword(password);
-    if (!pwV.valid) { Auth.showError(pwV.error); return; }
-
-    const matchV = Auth.validatePasswordMatch(password, confirm);
-    if (!matchV.valid) { Auth.showError(matchV.error); return; }
-
-    submitting = true;
-    Auth.setLoading('regSubmit', 'regBtnText', true, 'Create Account');
-
-    try {
-      const result = await Auth.apiRequest('/register', {
-        method: 'POST',
-        body: JSON.stringify({ email, password }),
-      });
-
-      if (result.ok) {
-        if (result.data.user) Auth.storeUser(result.data.user);
-        Auth.showSuccess('✅ Account created! Redirecting…');
-        setTimeout(function () { window.location.href = '/'; }, 1000);
-      } else {
-        handleRegisterError(result.data, result.status);
-      }
-    } catch (err) {
-      Auth.showError(err.message || 'Registration failed. Please try again.');
-    } finally {
-      submitting = false;
-      Auth.setLoading('regSubmit', 'regBtnText', false, 'Create Account');
+    function showErr(msg) {
+        if (!errMsg) return;
+        errMsg.textContent = msg;
+        errMsg.style.display = 'block';
     }
-  }
-
-  function handleRegisterError(data, status) {
-    const msg = data.error || 'Registration failed.';
-    switch (status) {
-      case 409: Auth.showError('This email is already registered. Try signing in.'); break;
-      case 429: Auth.showError('Too many attempts. Please wait before trying again.'); break;
-      case 400:
-        if (msg.toLowerCase().includes('email'))    Auth.showError(msg);
-        else if (msg.toLowerCase().includes('pass')) Auth.showError(msg);
-        else Auth.showError(msg);
-        break;
-      default: Auth.showError(msg);
-    }
-  }
-
-})();
+});

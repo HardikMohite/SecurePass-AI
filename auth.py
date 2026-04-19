@@ -220,48 +220,43 @@ def check_auth():
 @auth_bp.route('/stats', methods=['GET'])
 @login_required
 def get_user_stats():
-    """Return summary statistics and recent analyses for the current user."""
-    recent = (
-        current_user.analyses
-        .order_by(Analysis.created_at.desc())
-        .limit(5)
-        .all()
-    )
-    return jsonify({
-        'total_analyses': current_user.get_analysis_count(),
-        'recent_analyses': [a.summary_dict() for a in recent],
-    }), 200
+    """Return summary stats for the current user."""
+    try:
+        total_analyses = Analysis.query.filter_by(user_id=current_user.id).count()
+        recent_analyses = Analysis.query.filter_by(user_id=current_user.id) \
+            .order_by(Analysis.timestamp.desc()) \
+            .limit(5).all()
+
+        return jsonify({
+            'total_analyses': total_analyses,
+            'recent_analyses': [a.to_dict() for a in recent_analyses],
+            'member_since': current_user.created_at.isoformat(),
+        }), 200
+    except Exception:
+        logger.exception('Failed to retrieve user stats')
+        return jsonify({'error': 'Could not retrieve user statistics.'}), 500
 
 
 @auth_bp.route('/history', methods=['GET'])
 @login_required
-def get_history():
-    """
-    Paginated analysis history for the current user.
-
-    Query params:
-        page  – page number (default 1)
-        limit – items per page (default 10, max 50)
-    """
+def get_user_history():
+    """Return paginated analysis history for the current user."""
     try:
-        page  = max(1, request.args.get('page', 1, type=int))
-        limit = min(50, max(1, request.args.get('limit', 10, type=int)))
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
 
-        pagination = (
-            current_user.analyses
-            .order_by(Analysis.created_at.desc())
-            .paginate(page=page, per_page=limit, error_out=False)
-        )
+        history = Analysis.query.filter_by(user_id=current_user.id) \
+            .order_by(Analysis.timestamp.desc()) \
+            .paginate(page=page, per_page=per_page, error_out=False)
 
         return jsonify({
-            'analyses':    [a.summary_dict() for a in pagination.items],
-            'total':       pagination.total,
-            'page':        page,
-            'pages':       pagination.pages,
-            'has_next':    pagination.has_next,
-            'has_prev':    pagination.has_prev,
+            'history': [item.to_dict(rules=('-analysis_data',)) for item in history.items],
+            'total': history.total,
+            'page': history.page,
+            'pages': history.pages,
+            'has_next': history.has_next,
+            'has_prev': history.has_prev,
         }), 200
-
-    except Exception as exc:
-        logger.exception('History error')
-        return jsonify({'error': 'Failed to retrieve history.'}), 500
+    except Exception:
+        logger.exception('Failed to retrieve user history')
+        return jsonify({'error': 'Could not retrieve analysis history.'}), 500

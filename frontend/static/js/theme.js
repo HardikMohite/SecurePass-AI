@@ -1,55 +1,34 @@
-/**
- * theme.js — Dark / Light theme toggle
- * Include on every page BEFORE other scripts.
- * Reads/writes localStorage key 'sp-theme'.
- */
-(function () {
-  'use strict';
+// Theme Manager for SecurePass AI
+window.ThemeManager = {
+    theme: localStorage.getItem('sp-theme') || 'dark',
 
-  const STORAGE_KEY = 'sp-theme';
-  const DEFAULT     = 'dark';
+    init() {
+        this.applyTheme();
+        const toggle = document.getElementById('themeToggle');
+        if (toggle) toggle.onclick = () => this.toggle();
+    },
 
-  /* Apply theme immediately (before paint) */
-  const saved = localStorage.getItem(STORAGE_KEY) || DEFAULT;
-  document.documentElement.setAttribute('data-theme', saved);
+    toggle() {
+        this.theme = this.theme === 'dark' ? 'light' : 'dark';
+        localStorage.setItem('sp-theme', this.theme);
+        this.applyTheme();
+    },
 
-  /* Update all toggle elements on the page */
-  function syncToggles(theme) {
-    /* Nav toggle thumb (main dashboard) */
-    const thumb = document.getElementById('toggleThumb');
-    if (thumb) thumb.textContent = theme === 'dark' ? '☀️' : '🌙';
-
-    /* Fixed button (auth pages) */
-    const btn = document.getElementById('themeToggle');
-    if (btn && btn.tagName === 'BUTTON' && !btn.classList.contains('theme-toggle')) {
-      btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+    applyTheme() {
+        document.documentElement.setAttribute('data-theme', this.theme);
+        document.body.className = this.theme + '-mode';
+        const moon = document.getElementById('moonIcon');
+        const sun  = document.getElementById('sunIcon');
+        if (this.theme === 'dark') {
+            if (moon) moon.style.display = 'block';
+            if (sun)  sun.style.display  = 'none';
+        } else {
+            if (moon) moon.style.display = 'none';
+            if (sun)  sun.style.display  = 'block';
+        }
     }
-  }
+};
 
-  function applyTheme(theme) {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem(STORAGE_KEY, theme);
-    syncToggles(theme);
-  }
-
-  function toggle() {
-    const current = document.documentElement.getAttribute('data-theme') || DEFAULT;
-    applyTheme(current === 'dark' ? 'light' : 'dark');
-  }
-
-  /* Expose globally */
-  window.ThemeManager = { toggle, apply: applyTheme, current: () => document.documentElement.getAttribute('data-theme') };
-
-  /* Wire up elements once DOM is ready */
-  document.addEventListener('DOMContentLoaded', function () {
-    syncToggles(document.documentElement.getAttribute('data-theme'));
-
-    /* Nav pill toggle (dashboard) */
-    const navToggle = document.getElementById('themeToggle');
-    if (navToggle) navToggle.addEventListener('click', toggle);
-
-    /* Auth page button (same id, different element) */
-    const authBtn = document.getElementById('themeToggle');
-    if (authBtn && authBtn !== navToggle) authBtn.addEventListener('click', toggle);
-  });
-})();
+window.addEventListener('DOMContentLoaded', () => {
+    window.ThemeManager.init();
+});

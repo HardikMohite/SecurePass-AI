@@ -1,133 +1,105 @@
 <!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Create Account — SecurePass AI</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register | SecurePass AI</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
 </head>
-<body class="auth-page">
-
-<div class="grid-bg"></div>
-<div class="noise"></div>
-
-<!-- Theme toggle -->
-<button class="theme-btn" id="themeToggle" aria-label="Toggle theme">
-  <i class="fa-solid fa-sun"></i>
-</button>
-
-<!-- Auth wrapper: left panel + right card -->
-<div class="auth-wrapper">
-
-  <!-- Left panel — branding -->
-  <div class="auth-panel">
-    <div class="auth-panel-inner">
-      <div class="auth-brand">
-        <div class="brand-icon">
-          <i class="fa-solid fa-shield-halved"></i>
+<body>
+    <div class="auth-wrapper">
+        <div class="auth-panel-left">
+            <div class="auth-content">
+                <a href="/" class="auth-logo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="logo-shield" style="color: var(--accent);">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        <path d="M12 2v20c5-1 8-5 8-10V5l-8-3z" fill="var(--accent)" stroke="none" />
+                    </svg>
+                    <span>Secure<span class="logo-pass">Pass</span> AI</span>
+                </a>
+                <h1 class="auth-title">Start securing your <br><span style="color: var(--accent);">passwords</span> today.</h1>
+                <ul class="auth-features">
+                    <li><i data-lucide="check-circle"></i> Batch Password Security Auditing</li>
+                    <li><i data-lucide="check-circle"></i> AI-Powered Risk Forecasting</li>
+                    <li><i data-lucide="check-circle"></i> Regulatory Compliance Scanning</li>
+                    <li><i data-lucide="check-circle"></i> Enterprise Data Loss Prevention</li>
+                </ul>
+            </div>
         </div>
-        <span class="brand-name">SecurePass <em>AI</em></span>
-      </div>
-      <h2 class="panel-headline">Start securing<br>your passwords today.</h2>
-      <p class="panel-sub">Join thousands of security teams who trust SecurePass AI to audit and harden their password policies.</p>
-      <ul class="panel-features">
-        <li><i class="fa-solid fa-circle-check"></i> Free to get started</li>
-        <li><i class="fa-solid fa-circle-check"></i> Instant analysis results</li>
-        <li><i class="fa-solid fa-circle-check"></i> No data stored after analysis</li>
-        <li><i class="fa-solid fa-circle-check"></i> PDF report download included</li>
-      </ul>
-    </div>
-  </div>
+        
+        <div class="auth-panel-right">
+            <div class="auth-card">
+                <h2>Create account</h2>
+                <p>Start securing your organisation's passwords.</p>
 
-  <!-- Right panel — form -->
-  <div class="auth-card">
+                <form id="registerForm">
+                    <div id="errMsg" style="display: none; padding: 0.75rem; background: rgba(255, 95, 87, 0.1); color: #ff5f57; border-radius: 4px; font-size: 0.85rem; margin-bottom: 1.5rem;"></div>
 
-    <div class="auth-logo">
-      <div class="auth-logo-icon">
-        <i class="fa-solid fa-shield-halved"></i>
-      </div>
-      <span class="auth-logo-name">SecurePass <span>AI</span></span>
-    </div>
+                    <div class="form-group">
+                        <label for="email">Email address</label>
+                        <div class="input-wrapper">
+                            <input type="email" id="email" class="auth-input" placeholder="name@company.com" required>
+                        </div>
+                    </div>
 
-    <h1 class="auth-title">Create account</h1>
-    <p class="auth-sub">Start securing your organisation's passwords</p>
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <div class="input-wrapper">
+                            <i data-lucide="lock"></i>
+                            <input type="password" id="password" class="auth-input" placeholder="••••••••" required>
+                            <button type="button" id="pwEye" class="password-eye">
+                                <i data-lucide="eye"></i>
+                            </button>
+                        </div>
+                        
+                        <!-- Password Strength -->
+                        <div class="password-strength-grid">
+                            <div id="seg0" class="strength-segment"></div>
+                            <div id="seg1" class="strength-segment"></div>
+                            <div id="seg2" class="strength-segment"></div>
+                            <div id="seg3" class="strength-segment"></div>
+                        </div>
+                        <div id="strengthLabel" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.5rem; text-align: right;">Strength: None</div>
 
-    <!-- Alerts -->
-    <div class="error-msg"   id="errMsg"></div>
-    <div class="success-msg" id="successMsg"></div>
+                        <ul class="requirement-list">
+                            <li id="req-len"><i data-lucide="circle"></i> 8+ characters</li>
+                            <li id="req-12"><i data-lucide="circle"></i> 12+ (Recommended)</li>
+                            <li id="req-up"><i data-lucide="circle"></i> Uppercase</li>
+                            <li id="req-low"><i data-lucide="circle"></i> Lowercase</li>
+                            <li id="req-num"><i data-lucide="circle"></i> Number</li>
+                            <li id="req-spc"><i data-lucide="circle"></i> Special</li>
+                        </ul>
+                    </div>
 
-    <!-- Email -->
-    <div class="field">
-      <label for="email">
-        <i class="fa-solid fa-envelope"></i> Email address
-      </label>
-      <input type="email" id="email" autocomplete="email" placeholder="you@example.com" spellcheck="false">
-    </div>
+                    <div class="form-group">
+                        <label for="confirm">Confirm password</label>
+                        <div class="input-wrapper">
+                            <i data-lucide="shield"></i>
+                            <input type="password" id="confirm" class="auth-input" placeholder="••••••••" required>
+                            <button type="button" id="confEye" class="password-eye">
+                                <i data-lucide="eye"></i>
+                            </button>
+                        </div>
+                    </div>
 
-    <!-- Password -->
-    <div class="field">
-      <label for="password">
-        <i class="fa-solid fa-lock"></i> Password
-      </label>
-      <div class="pw-wrap">
-        <input type="password" id="password" autocomplete="new-password" placeholder="Create a strong password">
-        <button class="pw-eye" id="pwEye" type="button" aria-label="Toggle password visibility">
-          <i class="fa-solid fa-eye"></i>
-        </button>
-      </div>
-      <!-- Strength bar -->
-      <div class="strength-bar">
-        <div class="strength-seg" id="seg0"></div>
-        <div class="strength-seg" id="seg1"></div>
-        <div class="strength-seg" id="seg2"></div>
-        <div class="strength-seg" id="seg3"></div>
-      </div>
-      <div class="strength-label" id="strengthLabel"></div>
-      <!-- Requirements -->
-      <div class="pw-reqs">
-        <span class="req" id="req-len"> <i class="fa-solid fa-circle req-icon"></i> 8+ characters</span>
-        <span class="req" id="req-up">  <i class="fa-solid fa-circle req-icon"></i> Uppercase letter</span>
-        <span class="req" id="req-low"> <i class="fa-solid fa-circle req-icon"></i> Lowercase letter</span>
-        <span class="req" id="req-num"> <i class="fa-solid fa-circle req-icon"></i> Number</span>
-        <span class="req" id="req-spc"> <i class="fa-solid fa-circle req-icon"></i> Special character</span>
-        <span class="req" id="req-12">  <i class="fa-solid fa-circle req-icon"></i> 12+ chars (recommended)</span>
-      </div>
-    </div>
+                    <button type="submit" id="regSubmit" class="btn btn-primary">
+                        <span id="regBtnText">Create Account</span>
+                        <i data-lucide="user-plus"></i>
+                    </button>
+                </form>
 
-    <!-- Confirm password -->
-    <div class="field">
-      <label for="confirm">
-        <i class="fa-solid fa-lock"></i> Confirm password
-      </label>
-      <div class="pw-wrap">
-        <input type="password" id="confirm" autocomplete="new-password" placeholder="Repeat your password">
-        <button class="pw-eye" id="confEye" type="button" aria-label="Toggle confirm password visibility">
-          <i class="fa-solid fa-eye"></i>
-        </button>
-      </div>
+                <div class="auth-footer">
+                    Already have an account? <a href="/login">Sign in</a>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <!-- Submit -->
-    <button class="btn-submit" id="regSubmit" type="button">
-      <i class="fa-solid fa-user-plus"></i>
-      <span id="regBtnText">Create Account</span>
-    </button>
-
-    <div class="auth-divider"><span>or</span></div>
-
-    <div class="auth-footer">
-      Already have an account? <a href="/login">Sign in <i class="fa-solid fa-arrow-right"></i></a>
-    </div>
-
-  </div>
-</div>
-
-<script src="{{ url_for('static', filename='js/theme.js') }}"></script>
-<script src="{{ url_for('static', filename='js/auth.js') }}"></script>
-<script src="{{ url_for('static', filename='js/register.js') }}"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="{{ url_for('static', filename='js/register.js') }}"></script>
+    <script>
+        lucide.createIcons();
+    </script>
 </body>
 </html>

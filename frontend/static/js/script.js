@@ -1,1052 +1,719 @@
 /**
- * script.js — SecurePass AI main dashboard
- * Requires: theme.js, hibp.js loaded before this file
+ * script.js — SecurePass AI Dashboard
+ * Fully wired to Flask backend APIs with new sidebar UI.
+ *
+ * API endpoints:
+ *   GET  /api/auth/profile        → auth check / nav
+ *   POST /api/auth/logout         → logout
+ *   POST /api/analyze             → dataset analysis
+ *   POST /api/check-password      → single password check
+ *   POST /api/hibp/check-password → HIBP single check
+ *   POST /api/download-report     → PDF download
+ *   GET  /api/csrf-token          → CSRF token
  */
 (function () {
-  'use strict';
+    'use strict';
 
-  /* ── State ─────────────────────────────────────────────── */
-  const state = {
-    selectedFile:    null,
-    analysisResults: null,
-    currentUser:     null,
-    enableBreach:    true,
-    enableAI:        true,
-    enableCompliance:true,
-    submitting:      false,
-    pwCheckTimeout:  null,
-  };
+    const S = { file: null, results: null, user: null, submitting: false, charts: {} };
+    const $  = id  => document.getElementById(id);
+    const qs = sel => document.querySelector(sel);
 
-  /* ── DOM refs ──────────────────────────────────────────── */
-  let $;
-
-  /* ── Init ──────────────────────────────────────────────── */
-  document.addEventListener('DOMContentLoaded', function () {
-    $ = id => document.getElementById(id);
-
-    setupNav();
-    setupUploadZone();
-    setupToggles();
-    setupPasswordChecker();
-    setupResultsActions();
-    checkAuthStatus();
-  });
-
-  /* ================================================================
-     NAV
-  ================================================================ */
-  function setupNav() {
-    const logoutBtn = $('logoutBtn');
-    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
-  }
-
-  async function checkAuthStatus() {
-    try {
-      const res  = await fetch('/api/auth/profile', { credentials: 'include' });
-      const data = await res.json().catch(() => ({}));
-      if (data.user || data.email) {
-        state.currentUser = data.user || data;
-        showUserNav(state.currentUser.email || state.currentUser);
-      } else {
-        showGuestNav();
-      }
-    } catch {
-      showGuestNav();
-    }
-  }
-
-  function showUserNav(email) {
-    const auth    = $('navAuth');
-    const userBox = $('navUser');
-    const emailEl = $('navEmail');
-    if (auth)    auth.style.display    = 'none';
-    if (userBox) userBox.style.display = 'flex';
-    if (emailEl) emailEl.textContent   = email;
-  }
-
-  function showGuestNav() {
-    const auth    = $('navAuth');
-    const userBox = $('navUser');
-    if (auth)    auth.style.display    = 'flex';
-    if (userBox) userBox.style.display = 'none';
-  }
-
-  async function handleLogout() {
-    try {
-      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-    } catch {}
-    state.currentUser = null;
-    showGuestNav();
-    toast('Logged out.', 'info');
-    resetDashboard();
-  }
-
-  /* ================================================================
-     UPLOAD ZONE
-  ================================================================ */
-  function setupUploadZone() {
-    const zone      = $('uploadZone');
-    const fileInput = $('fileInput');
-    const selectBtn = $('selectFileBtn');
-    const removeBtn = $('removeFileBtn');
-    const analyzeBtn= $('analyzeBtn');
-
-    if (selectBtn) selectBtn.addEventListener('click', () => fileInput && fileInput.click());
-    if (zone)      zone.addEventListener('click',      () => fileInput && fileInput.click());
-
-    if (fileInput) {
-      fileInput.addEventListener('change', function (e) {
-        if (e.target.files.length) handleFileSelect(e.target.files[0]);
-      });
-    }
-
-    if (zone) {
-      zone.addEventListener('dragover',  function (e) { e.preventDefault(); zone.classList.add('drag-over'); });
-      zone.addEventListener('dragleave', function ()  { zone.classList.remove('drag-over'); });
-      zone.addEventListener('drop',      function (e) {
-        e.preventDefault(); zone.classList.remove('drag-over');
-        if (e.dataTransfer.files.length) handleFileSelect(e.dataTransfer.files[0]);
-      });
-    }
-
-    if (removeBtn) removeBtn.addEventListener('click', function (e) { e.stopPropagation(); clearFile(); });
-    if (analyzeBtn) analyzeBtn.addEventListener('click', runAnalysis);
-  }
-
-  function handleFileSelect(file) {
-    const ext = file.name.split('.').pop().toLowerCase();
-    if (!['txt','csv'].includes(ext)) {
-      toast('Invalid file type. Use .txt or .csv', 'error'); return;
-    }
-    if (file.size > 16 * 1024 * 1024) {
-      toast('File too large — max 16 MB.', 'error'); return;
-    }
-    state.selectedFile = file;
-
-    const nameEl = $('fileName');
-    const infoEl = $('fileInfo');
-    const btn    = $('analyzeBtn');
-    if (nameEl) nameEl.textContent = `${file.name}  (${fmtSize(file.size)})`;
-    if (infoEl) infoEl.classList.add('visible');
-    if (btn)    btn.disabled = false;
-  }
-
-  function clearFile() {
-    state.selectedFile = null;
-    const fi  = $('fileInput');
-    const inf = $('fileInfo');
-    const btn = $('analyzeBtn');
-    if (fi)  fi.value   = '';
-    if (inf) inf.classList.remove('visible');
-    if (btn) btn.disabled = true;
-  }
-
-  /* ================================================================
-     OPTIONS TOGGLES (Breach / AI / Compliance)
-  ================================================================ */
-  function setupToggles() {
-    bindToggle('toggleBreach',     'pillBreach',     'enableBreach');
-    bindToggle('toggleAI',         'pillAI',         'enableAI');
-    bindToggle('toggleCompliance', 'pillCompliance', 'enableCompliance');
-  }
-
-  function bindToggle(wrapId, pillId, stateKey) {
-    const wrap = $(wrapId);
-    const pill = $(pillId);
-    if (!wrap) return;
-    // Set initial on-state
-    if (state[stateKey]) { pill && pill.classList.add('on'); wrap.classList.add('active'); }
-    wrap.addEventListener('click', function () {
-      state[stateKey] = !state[stateKey];
-      pill && pill.classList.toggle('on', state[stateKey]);
-      wrap.classList.toggle('active', state[stateKey]);
+    window.addEventListener('DOMContentLoaded', async () => {
+        setupUpload();
+        setupPasswordChecker();
+        setupToggles();
+        setupSimulation();
+        setupResetBtn();
+        setupLogout();
+        setupSidebar();
+        setupSettingsNav();
+        setupSettingsInteractions();
+        setupAIDrawer();
+        await checkAuth();
+        if (window.lucide) lucide.createIcons();
     });
-  }
 
-  /* ================================================================
-     ANALYSIS
-  ================================================================ */
-  async function runAnalysis() {
-    if (state.submitting || !state.selectedFile) return;
-
-    // Require login
-    if (!state.currentUser) {
-      toast('Please sign in to analyse datasets.', 'error');
-      setTimeout(() => { window.location.href = '/login'; }, 1400);
-      return;
+    /* ══ AUTH ═══════════════════════════════════════════ */
+    async function checkAuth() {
+        try {
+            const r = await fetch('/api/auth/profile', { credentials: 'include' });
+            const d = await r.json().catch(() => ({}));
+            if (r.ok && (d.user || d.email)) {
+                S.user = d.user || d;
+                showUserNav(S.user.email || S.user.username || '');
+            } else { showGuestNav(); }
+        } catch { showGuestNav(); }
     }
 
-    state.submitting = true;
-    showSection('loading');
-    startLoaderSteps();
-
-    try {
-      const csrf = await getCsrfToken();
-      const form = new FormData();
-      form.append('file', state.selectedFile);
-      form.append('enable_breach_check', state.enableBreach ? '1' : '0');
-      form.append('enable_ai',           state.enableAI     ? '1' : '0');
-      form.append('enable_compliance',   state.enableCompliance ? '1' : '0');
-
-      const headers = {};
-      if (csrf) headers['X-CSRFToken'] = csrf;
-
-      const res = await fetch('/api/analyze', { method: 'POST', headers, body: form, credentials: 'include' });
-
-      if (res.status === 401) {
-        toast('Session expired. Please log in again.', 'error');
-        showSection('input'); state.submitting = false; return;
-      }
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error || `Server error ${res.status}`);
-      }
-
-      state.analysisResults = await res.json();
-      renderResults(state.analysisResults);
-      showSection('results');
-      toast('Analysis complete!', 'success');
-
-    } catch (err) {
-      console.error('Analysis error:', err);
-      toast(err.message || 'Analysis failed.', 'error');
-      showSection('input');
-    } finally {
-      state.submitting = false;
+    function showUserNav(email) {
+        const a = $('navAuth'), u = $('navUser'), em = $('navEmail');
+        if (a)  a.style.display  = 'none';
+        if (u)  u.style.display  = 'flex';
+        if (em) em.textContent   = email;
     }
-  }
+    function showGuestNav() {
+        const a = $('navAuth'), u = $('navUser');
+        if (a) a.style.display = 'flex';
+        if (u) u.style.display = 'none';
+    }
 
-  /* ── Loader steps ──────────────────────────────────────── */
-  const STEPS = ['step-parse','step-detect','step-risk','step-breach','step-ai','step-report'];
-  function startLoaderSteps() {
-    STEPS.forEach(id => {
-      const el = $(id);
-      if (el) {
-        el.classList.remove('active','done');
-        const ic = el.querySelector('.step-icon i');
-        if (ic) { ic.className = 'fa-regular fa-square'; }
-      }
-    });
-    STEPS.forEach((id, i) => {
-      setTimeout(() => {
-        STEPS.slice(0, i).forEach(prev => {
-          const p = $(prev);
-          if (p) {
-            p.classList.remove('active'); p.classList.add('done');
-            const ic = p.querySelector('.step-icon i');
-            if (ic) { ic.className = 'fa-solid fa-square-check'; ic.style.color = 'var(--green)'; }
-          }
+    function setupLogout() {
+        const btn = $('logoutBtn');
+        if (!btn) return;
+        btn.addEventListener('click', async () => {
+            try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch {}
+            S.user = null; showGuestNav(); toast('Logged out.', 'info'); resetDashboard();
         });
-        const el = $(id);
-        if (el) {
-          el.classList.add('active');
-          const ic = el.querySelector('.step-icon i');
-          if (ic) { ic.className = 'fa-solid fa-spinner fa-spin'; ic.style.color = 'var(--accent)'; }
+    }
+
+    /* ══ SIDEBAR ════════════════════════════════════════ */
+    function setupSidebar() {
+        const dashBtn = $('dashboardBtn'), settBtn = $('settingsBtn');
+        const dashSec = $('dashboardSection'), settSec = $('settingsSection');
+        const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
+
+        if (dashBtn) dashBtn.addEventListener('click', () => {
+            if (settSec) settSec.style.display = 'none';
+            if (dashSec) dashSec.style.display = 'block';
+            navItems.forEach(i => i.classList.remove('active'));
+            dashBtn.classList.add('active');
+        });
+
+        if (settBtn) settBtn.addEventListener('click', () => {
+            if (dashSec) dashSec.style.display = 'none';
+            if (settSec) settSec.style.display = 'block';
+            navItems.forEach(i => i.classList.remove('active'));
+            settBtn.classList.add('active');
+        });
+    }
+
+    /* ══ SETTINGS NAV ═══════════════════════════════════ */
+    function setupSettingsNav() {
+        const items = document.querySelectorAll('.settings-nav-item');
+        const secs  = { profile: $('profileSection'), appearance: $('appearanceSection'), audit: $('auditSection'), notifications: $('notificationsSection'), data: $('dataSection'), security: $('securitySection') };
+        items.forEach(item => {
+            item.addEventListener('click', () => {
+                const t = item.getAttribute('data-section');
+                items.forEach(n => n.classList.remove('active'));
+                item.classList.add('active');
+                Object.values(secs).forEach(s => { if (s) s.style.display = 'none'; });
+                if (secs[t]) secs[t].style.display = 'block';
+            });
+        });
+    }
+
+    /* ══ SETTINGS INTERACTIONS ═══════════════════════════ */
+    function setupSettingsInteractions() {
+        _setupAccentColor(); _setupDensity(); _setupFontSize();
+        _setupCardSaveBtns(); _setupComplianceSelect(); _setupRiskSliders();
+        _setup2FA(); _setupSessionRevoke(); _setupDangerZone();
+        _setupPwToggles(); _setupDataExport(); _setupNotificationToggles();
+    }
+
+    function _setupAccentColor() {
+        const opts = document.querySelectorAll('.color-option');
+        const hexIn = $('customHexInput'), picker = $('customColorPicker');
+        const root  = document.documentElement;
+        function h2r(hex) {
+            const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return r ? `${parseInt(r[1],16)}, ${parseInt(r[2],16)}, ${parseInt(r[3],16)}` : null;
         }
-      }, i * 700);
-    });
-  }
-
-  /* ================================================================
-     RENDER RESULTS
-  ================================================================ */
-  function renderResults(data) {
-    const ov = data.overview || {};
-    const ci = (id, val) => { const e = $(id); if (e) e.textContent = val ?? '—'; };
-
-    ci('resTotalPw',   ov.total_passwords);
-    ci('resUniquePw',  ov.unique_passwords);
-    ci('resAvgLength', ov.average_length ? Number(ov.average_length).toFixed(1) : '—');
-    ci('resHighRisk',  data.risk_distribution?.['High Risk'] ?? data.risk_distribution?.high ?? ov.weak_passwords ?? '—');
-
-    // Score ring
-    const score = ov.risk_score ?? 0;
-    ci('scoreNum', score);
-    animateRing('scoreRingFill', score, 100);
-
-    // Risk badge
-    const badge = $('riskBadge');
-    if (badge) {
-      const level = (data.risk_level || '').toLowerCase();
-      badge.className  = 'risk-badge risk-' + (level || 'medium');
-      badge.textContent = (data.risk_level || 'Unknown').toUpperCase();
-    }
-
-    // Risk distribution bars
-    const rd = data.risk_distribution || {};
-    const total = ov.total_passwords || 1;
-    animateBar('barHigh',   rd['High Risk']   || rd.high   || 0, total, 'pctHigh');
-    animateBar('barMedium', rd['Medium Risk'] || rd.medium || 0, total, 'pctMedium');
-    animateBar('barLow',    rd['Low Risk']    || rd.low    || 0, total, 'pctLow');
-
-    // Patterns
-    renderPatterns(data.patterns);
-
-    // HIBP
-    if (state.enableBreach && (data.breach_statistics || data.breach_stats) && window.HIBP) {
-      const bsec = $('breachSection');
-      const bstats = data.breach_statistics || data.breach_stats;
-      if (bsec) { bsec.style.display = 'block'; HIBP.renderBreachStats(bstats, $('breachContainer')); }
-    } else {
-      const bsec = $('breachSection'); if (bsec) bsec.style.display = 'none';
-    }
-
-    // Compliance
-    renderCompliance(data.compliance);
-
-    // AI Insights
-    renderInsights(data.ai_insights);
-
-    // Charts
-    renderCharts(data);
-
-    // Attack Simulation
-    // Attack Simulation — store data, wire up button
-    initAttackSim(data.attack_scenarios, data.overview);
-
-    // Download button
-    const dl = $('downloadBtn');
-    if (dl) dl.style.display = 'inline-flex';
-  }
-
-  function animateRing(id, value, max) {
-    const el = $(id);
-    if (!el) return;
-    const circ = 2 * Math.PI * 52; // r=52
-    const pct  = Math.min(Math.max(value / max, 0), 1);
-    el.setAttribute('stroke-dasharray', circ);
-    el.setAttribute('stroke-dashoffset', circ);
-    const color = value >= 70 ? 'var(--red)' : value >= 40 ? 'var(--amber)' : 'var(--green)';
-    el.setAttribute('stroke', color);
-    requestAnimationFrame(() => {
-      el.style.transition = 'stroke-dashoffset 1.2s cubic-bezier(0.4,0,0.2,1)';
-      el.setAttribute('stroke-dashoffset', circ * (1 - pct));
-    });
-  }
-
-  function animateBar(fillId, count, total, pctId) {
-    const fill = $(fillId);
-    const pctEl= $(pctId);
-    if (!fill) return;
-    const pct = total ? (count / total * 100) : 0;
-    if (pctEl) pctEl.textContent = pct.toFixed(1) + '%';
-    requestAnimationFrame(() => {
-      fill.style.width = pct.toFixed(1) + '%';
-    });
-  }
-
-  function renderPatterns(patterns) {
-    const wrap = $('patternsWrap');
-    if (!wrap) return;
-    const map = (patterns && patterns.patterns) ? patterns.patterns : patterns;
-    if (!map) { wrap.innerHTML = '<p class="text-muted" style="font-size:0.8rem">No pattern data available.</p>'; return; }
-    const icons = {
-      dictionary_based:   '<i class="fa-solid fa-book"></i>',
-      keyboard_patterns:  '<i class="fa-solid fa-keyboard"></i>',
-      sequential_numbers: '<i class="fa-solid fa-list-ol"></i>',
-      name_based:         '<i class="fa-solid fa-user"></i>',
-      date_patterns:      '<i class="fa-solid fa-calendar"></i>',
-      repeated_chars:     '<i class="fa-solid fa-rotate"></i>',
-      common_words:       '<i class="fa-solid fa-comment"></i>',
-    };
-    const defaultIcon = '<i class="fa-solid fa-magnifying-glass"></i>';
-    const entries = Object.entries(map).filter(([,v]) => (v?.count || 0) > 0);
-    if (!entries.length) { wrap.innerHTML = '<p class="text-muted" style="font-size:0.8rem">No patterns detected.</p>'; return; }
-    wrap.innerHTML = entries.map(([k, v]) => `
-      <div class="metric-card" style="flex-direction:row;align-items:center;gap:12px;padding:12px 14px">
-        <div class="metric-icon" style="margin-bottom:0;flex-shrink:0">${icons[k] || defaultIcon}</div>
-        <div>
-          <div class="metric-label">${k.replace(/_/g,' ')}</div>
-          <div style="font-size:0.85rem;font-weight:700">${v.count} <span class="text-muted" style="font-size:0.72rem">(${v.percentage ?? 0}%)</span></div>
-        </div>
-      </div>`).join('');
-  }
-
-  function renderCompliance(compliance) {
-    const wrap = $('complianceWrap');
-    if (!wrap || !compliance) return;
-    const items = [
-      { name: 'NIST SP 800-63', key: 'nist_compliance_status' },
-      { name: 'OWASP',          key: 'owasp_risk_level' },
-      { name: 'ISO 27001',      key: 'iso_compliance_status' },
-    ];
-    wrap.innerHTML = items.map(item => {
-      const raw    = (compliance[item.key] || 'Unknown');
-      const cls    = raw.toLowerCase().includes('compli') ? 'compliant'
-                   : raw.toLowerCase().includes('partial')? 'partial' : 'noncompliant';
-      return `<div class="compliance-item">
-        <span class="compliance-name">${item.name}</span>
-        <span class="compliance-status status-${cls}">${raw}</span>
-      </div>`;
-    }).join('');
-  }
-
-  function renderInsights(insights) {
-    const wrap = $('insightsWrap');
-    if (!wrap) return;
-    if (!insights || !insights.length) {
-      wrap.innerHTML = '<p class="text-muted" style="font-size:0.8rem">No AI insights available.</p>'; return;
-    }
-    wrap.innerHTML = insights.map((txt, i) => `
-      <div class="insight-item" style="animation-delay:${i * 0.08}s">
-        <div class="insight-num">${i + 1}</div>
-        <div class="insight-text">${esc(txt)}</div>
-      </div>`).join('');
-  }
-
-  function initAttackSim(scenarios, overview) {
-    const btn = document.getElementById('btnRunSim');
-    if (!btn) return;
-
-    // Store on window so button handler can read them
-    window._simScenarios = scenarios || [];
-    window._simOverview  = overview  || {};
-
-    // Reset terminal to idle state
-    const term = document.getElementById('attackTerminal');
-    if (term) {
-      term.innerHTML = '<div class="t-line t-muted"><span>// Ready. Dataset loaded: <span class="t-success">' +
-        (overview && overview.total_passwords ? overview.total_passwords.toLocaleString() : '?') +
-        ' passwords</span>. Click EXECUTE SIMULATION to begin. <span class="t-cursor"></span></span></div>';
-    }
-    const results = document.getElementById('attackResults');
-    if (results) { results.style.display = 'none'; results.innerHTML = ''; }
-
-    btn.disabled = false;
-    btn.onclick  = () => runSimAnimation(window._simScenarios, window._simOverview);
-  }
-
-  function runSimAnimation(scenarios, overview) {
-    const btn  = document.getElementById('btnRunSim');
-    const term = document.getElementById('attackTerminal');
-    if (!btn || !term) return;
-
-    btn.disabled = true;
-    btn.textContent = '⏳ RUNNING...';
-
-    const total   = overview && overview.total_passwords ? overview.total_passwords : 0;
-    const unique  = overview && overview.unique_passwords ? overview.unique_passwords : 0;
-    const avgLen  = overview && overview.average_length  ? overview.average_length  : 0;
-    const uniquePct = total > 0 ? ((unique / total) * 100).toFixed(1) : 0;
-
-    function riskLabel(pct) {
-      if (pct >= 40) return ['CRITICAL', 'badge-critical'];
-      if (pct >= 25) return ['HIGH',     'badge-high'];
-      if (pct >= 10) return ['MEDIUM',   'badge-medium'];
-      return               ['LOW',       'badge-low'];
-    }
-    function barColor(pct) {
-      if (pct >= 40) return '#f85149';
-      if (pct >= 25) return '#f0883e';
-      if (pct >= 10) return '#d29922';
-      return '#3fb950';
-    }
-
-    // Build list of lines to print
-    const lines = [
-      { text: '> Initialising SecurePass Attack Engine v1.0...', cls: 't-prompt', badge: ['OK', 'badge-ok'], delay: 350 },
-      { text: `> Dataset loaded: ${total.toLocaleString()} passwords detected`, cls: 't-info', badge: ['OK', 'badge-ok'], delay: 380 },
-      { text: `> Unique passwords: ${unique.toLocaleString()} (${uniquePct}% unique)`, cls: 't-info', badge: ['OK', 'badge-ok'], delay: 360 },
-      { text: `> Average password length: ${avgLen} characters`, cls: 't-info', badge: ['OK', 'badge-ok'], delay: 340 },
-      { text: '> ─────────────────────────────────────────────', cls: 't-muted', delay: 250 },
-    ];
-
-    scenarios.forEach((s, i) => {
-      const pct   = parseFloat(s.probability) || 0;
-      const cnt   = s.count  != null ? s.count  : '?';
-      const [rl, bc] = riskLabel(pct);
-      lines.push({ text: `> [${i+1}/${scenarios.length}] Running ${s.name}...`, cls: 't-prompt', badge: ['RUNNING', 'badge-running'], delay: 420 });
-      lines.push({ text: `> Scanning ${total.toLocaleString()} passwords — ${s.description}`, cls: 't-muted', delay: 500 });
-      lines.push({ text: `> Matched: ${cnt} passwords vulnerable`, cls: pct >= 25 ? 't-danger' : 't-warn', delay: 480 });
-      lines.push({ text: `> Vulnerability: ${pct}%`, cls: pct >= 40 ? 't-danger' : pct >= 10 ? 't-warn' : 't-success', badge: [rl, bc], delay: 350 });
-      lines.push({ text: '> ─────────────────────────────────────────────', cls: 't-muted', delay: 200 });
-    });
-
-    // Verdict
-    const top = scenarios.length
-      ? scenarios.reduce((a, b) => (parseFloat(a.probability) > parseFloat(b.probability) ? a : b))
-      : null;
-    if (top) {
-      const topPct = parseFloat(top.probability);
-      const [rl, bc] = riskLabel(topPct);
-      lines.push({ text: '> SIMULATION COMPLETE', cls: 't-success', badge: ['OK', 'badge-ok'], delay: 300 });
-      lines.push({ text: `> Highest exposure: ${top.name} (${topPct}%)`, cls: 't-warn', delay: 300 });
-      lines.push({ text: `> Est. vulnerable: ${top.count != null ? top.count.toLocaleString() : '?'} of ${total.toLocaleString()} passwords`, cls: 't-danger', delay: 300 });
-      lines.push({ text: `> VERDICT: ${rl} RISK — remediation recommended`, cls: topPct >= 40 ? 't-danger' : topPct >= 10 ? 't-warn' : 't-success', badge: [rl, bc], delay: 400 });
-    }
-
-    // Clear terminal, print lines one by one
-    term.innerHTML = '';
-    let cumDelay = 0;
-    lines.forEach(({ text, cls, badge, delay }) => {
-      cumDelay += delay;
-      setTimeout(() => {
-        const div = document.createElement('div');
-        div.className = 't-line';
-        const span = document.createElement('span');
-        span.className = cls || 't-prompt';
-        span.textContent = text;
-        div.appendChild(span);
-        if (badge) {
-          const b = document.createElement('span');
-          b.className = 't-badge ' + badge[1];
-          b.textContent = badge[0];
-          div.appendChild(b);
+        function set(color) {
+            root.style.setProperty('--accent', color);
+            const rgb = h2r(color); if (rgb) root.style.setProperty('--accent-rgb', rgb);
         }
-        term.appendChild(div);
-        term.scrollTop = term.scrollHeight;
-      }, cumDelay);
-    });
-
-    // After all lines, show results bars
-    setTimeout(() => {
-      btn.disabled    = false;
-      btn.textContent = '↺  RUN AGAIN';
-      showSimResults(scenarios);
-    }, cumDelay + 600);
-  }
-
-  function showSimResults(scenarios) {
-    const el = document.getElementById('attackResults');
-    if (!el) return;
-
-    function riskLabel(pct) {
-      if (pct >= 40) return ['CRITICAL', '#f85149'];
-      if (pct >= 25) return ['HIGH',     '#f0883e'];
-      if (pct >= 10) return ['MEDIUM',   '#d29922'];
-      return               ['LOW',       '#3fb950'];
+        opts.forEach(o => o.addEventListener('click', () => {
+            const c = o.getAttribute('data-color');
+            opts.forEach(x => x.classList.remove('active')); o.classList.add('active'); set(c);
+            if (hexIn) hexIn.value = c.replace('#','').toUpperCase();
+            if (picker) picker.value = c;
+        }));
+        if (hexIn) hexIn.addEventListener('input', e => {
+            if (e.target.value.length === 6) { const c = '#'+e.target.value; set(c); if (picker) picker.value = c; opts.forEach(o => o.classList.toggle('active', o.getAttribute('data-color').toLowerCase() === c.toLowerCase())); }
+        });
+        if (picker) picker.addEventListener('input', e => {
+            const c = e.target.value; set(c); if (hexIn) hexIn.value = c.replace('#','').toUpperCase(); opts.forEach(o => o.classList.toggle('active', o.getAttribute('data-color').toLowerCase() === c.toLowerCase()));
+        });
     }
 
-    let html = '<div style="margin-bottom:10px;font-size:0.75rem;color:#484f58;font-family:\'Courier New\',monospace;letter-spacing:0.05em;">// RESULTS</div>';
-    scenarios.forEach(s => {
-      const pct = parseFloat(s.probability) || 0;
-      const [rl, col] = riskLabel(pct);
-      html += `
-        <div class="sim-bar-row">
-          <div class="sim-bar-label">${s.name}</div>
-          <div class="sim-bar-track">
-            <div class="sim-bar-fill" data-pct="${pct}" style="background:${col}"></div>
-          </div>
-          <div class="sim-bar-pct" style="color:${col}">${pct}%</div>
-          <div style="width:72px;font-size:0.9rem;font-weight:700;color:${col};font-family:'Courier New',monospace">${rl}</div>
-        </div>`;
-    });
-
-    // Verdict
-    if (scenarios.length) {
-      const top    = scenarios.reduce((a, b) => (parseFloat(a.probability) > parseFloat(b.probability) ? a : b));
-      const topPct = parseFloat(top.probability);
-      const [rl, col] = riskLabel(topPct);
-      const vClass = topPct >= 40 ? 'verdict-critical' : topPct >= 25 ? 'verdict-high' : topPct >= 10 ? 'verdict-medium' : 'verdict-low';
-      html += `<div class="sim-verdict ${vClass}">
-        &#9654; VERDICT: ${rl} RISK &mdash; Highest exposure: ${top.name} at ${topPct}%
-        &nbsp;(${top.count != null ? top.count.toLocaleString() : '?'} passwords affected)
-      </div>`;
+    function _setupDensity() {
+        const pills = document.querySelectorAll('.density-pill');
+        pills.forEach(p => p.addEventListener('click', () => {
+            pills.forEach(x => x.classList.remove('active')); p.classList.add('active');
+            document.body.setAttribute('data-density', p.getAttribute('data-density'));
+        }));
     }
 
-    el.innerHTML  = html;
-    el.style.display = 'block';
-
-    // Animate bars after brief paint delay
-    setTimeout(() => {
-      el.querySelectorAll('.sim-bar-fill').forEach(bar => {
-        bar.style.width = bar.dataset.pct + '%';
-      });
-    }, 80);
-  }
-
-  function renderAttackSim(scenarios) {
-    // Legacy no-op — initAttackSim is used instead
-  }
-
-  function renderCharts(data) {
-    const grid = $('chartsGrid');
-    if (grid) grid.style.display = 'grid';
-
-    // ── Shared Chart.js defaults (dark theme) ──────────────────────────
-    const FONT       = "'Inter', 'Segoe UI', sans-serif";
-    const C_TEXT     = '#c9d1d9';
-    const C_MUTED    = '#484f58';
-    const C_GRID     = 'rgba(255,255,255,0.06)';
-    const C_RED      = '#f85149';
-    const C_AMBER    = '#d29922';
-    const C_GREEN    = '#3fb950';
-    const C_CYAN     = '#00d4ff';
-    const C_BLUE     = '#58a6ff';
-    const C_PURPLE   = '#bc8cff';
-    const C_ORANGE   = '#f0883e';
-    const C_TEAL     = '#39d353';
-
-    Chart.defaults.color          = C_TEXT;
-    Chart.defaults.font.family    = FONT;
-    Chart.defaults.font.size      = 13;
-
-    const tooltipDefaults = {
-      backgroundColor: '#161b22',
-      borderColor:     '#30363d',
-      borderWidth:     1,
-      titleColor:      '#e6edf3',
-      bodyColor:       C_TEXT,
-      padding:         12,
-      cornerRadius:    8,
-      displayColors:   true,
-      boxPadding:      4,
-    };
-
-    function destroyIfExists(key) {
-      if (window['_ch_' + key] instanceof Chart) {
-        window['_ch_' + key].destroy();
-      }
+    function _setupFontSize() {
+        const s = $('fontSizeSlider'); if (!s) return;
+        s.addEventListener('input', e => { const sz = ['14px','16px','18px']; document.documentElement.style.setProperty('--base-font-size', sz[e.target.value]||'16px'); });
     }
 
-    // ── 1. Risk Distribution — Doughnut ───────────────────────────────
-    destroyIfExists('risk');
-    const rd   = data.risk_distribution || {};
-    const high = rd.high || rd['High Risk']   || 0;
-    const med  = rd.medium || rd['Medium Risk'] || 0;
-    const low  = rd.low  || rd['Low Risk']    || 0;
-    const ctxRisk = document.getElementById('chartRisk');
-    if (ctxRisk && (high + med + low) > 0) {
-      window._ch_risk = new Chart(ctxRisk, {
-        type: 'doughnut',
-        data: {
-          labels: ['High Risk', 'Medium Risk', 'Low Risk'],
-          datasets: [{
-            data: [high, med, low],
-            backgroundColor: [
-              'rgba(248,81,73,0.85)',
-              'rgba(210,153,34,0.85)',
-              'rgba(63,185,80,0.85)',
-            ],
-            borderColor: [C_RED, C_AMBER, C_GREEN],
-            borderWidth: 2,
-            hoverOffset: 10,
-          }],
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          cutout: '68%',
-          animation: { animateRotate: true, duration: 900 },
-          plugins: {
-            legend: {
-              position: 'bottom',
-              labels: { padding: 16, boxWidth: 12, borderRadius: 4, useBorderRadius: true },
-            },
-            tooltip: {
-              ...tooltipDefaults,
-              callbacks: {
-                label: ctx => {
-                  const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
-                  const pct   = total ? ((ctx.parsed / total) * 100).toFixed(1) : 0;
-                  return `  ${ctx.label}: ${ctx.parsed.toLocaleString()} (${pct}%)`;
-                },
-              },
-            },
-          },
-        },
-      });
+    function _setupCardSaveBtns() {
+        document.querySelectorAll('.btn-card-save').forEach(btn => {
+            btn.addEventListener('click', () => {
+                btn.classList.add('active-save');
+                setTimeout(() => {
+                    btn.classList.remove('active-save');
+                    const fb = btn.parentElement.querySelector('.save-feedback-text');
+                    if (fb) { fb.classList.add('show'); setTimeout(() => fb.classList.remove('show'), 2000); }
+                }, 1500);
+            });
+        });
     }
 
-    // ── 2. Length Distribution — Bar ──────────────────────────────────
-    destroyIfExists('length');
-    const stats   = data.dataset_stats || {};
-    const lenDist = data.patterns && data.patterns.length_distribution
-      ? data.patterns.length_distribution
-      : null;
+    function _setupComplianceSelect() {
+        const sel = $('complianceSelect'), pill = $('standardDescPill');
+        const descs = { nist: 'Digital Identity Guidelines for authentication and lifecycle management.', owasp: 'Standard for web application security and visibility into risks.', iso: 'Information security management system (ISMS) best practices.', custom: "Apply your organisation's unique internal security mandates." };
+        if (sel) sel.addEventListener('change', e => { if (!pill) return; pill.classList.remove('show'); setTimeout(() => { pill.textContent = descs[e.target.value]||''; pill.classList.add('show'); }, 200); });
+    }
 
-    const ctxLen = document.getElementById('chartLength');
-    if (ctxLen) {
-      // Build buckets from raw length_distribution or fall back to overview
-      let bucketLabels, bucketData;
-      if (lenDist && typeof lenDist === 'object') {
-        bucketLabels = Object.keys(lenDist);
-        bucketData   = Object.values(lenDist);
-      } else {
+    function _setupRiskSliders() {
+        const hs = $('highRiskSlider'), ms = $('medRiskSlider');
+        const bH = $('barHigh'), bM = $('barMed'), bL = $('barLow');
+        const hV = $('highRiskVal'), mV = $('medRiskVal'), lV = $('lowRiskVal');
+        function upd() {
+            if (!hs || !ms) return;
+            let h = parseInt(hs.value), m = parseInt(ms.value);
+            if (h >= m) { h = m - 1; if (h < 1) h = 1; hs.value = h; }
+            if (hV) hV.textContent = `Below ${h}`; if (mV) mV.textContent = `${h} to ${m}`; if (lV) lV.textContent = `Above ${m}`;
+            if (bH) bH.style.width = `${h}%`; if (bM) bM.style.width = `${m-h}%`; if (bL) bL.style.width = `${100-m}%`;
+        }
+        if (hs) hs.addEventListener('input', upd); if (ms) ms.addEventListener('input', upd);
+    }
+
+    function _setup2FA() {
+        const toggle = $('tfaToggle'), flow = $('tfaSetupFlow'), copyBtn = $('copyTfaKey'), keyEl = $('tfaKey');
+        const otpFields = document.querySelectorAll('.otp-field');
+        if (toggle && flow) {
+            toggle.addEventListener('click', () => {
+                toggle.classList.toggle('active');
+                if (toggle.classList.contains('active')) { flow.style.display='block'; flow.style.maxHeight='0px'; setTimeout(() => { flow.style.transition='max-height 250ms ease-out'; flow.style.maxHeight='1000px'; }, 10); }
+                else { flow.style.maxHeight='0px'; setTimeout(() => flow.style.display='none', 250); }
+            });
+        }
+        if (copyBtn && keyEl) {
+            copyBtn.addEventListener('click', () => navigator.clipboard.writeText(keyEl.innerText).then(() => {
+                const ci = copyBtn.querySelector('.copy-icon'), ch = copyBtn.querySelector('.check-icon');
+                if (ci&&ch) { ci.style.display='none'; ch.style.display='block'; setTimeout(() => { ci.style.display='block'; ch.style.display='none'; }, 1500); }
+            }));
+        }
+        otpFields.forEach((f,i) => {
+            f.addEventListener('input', () => { if (f.value.length===1 && i<otpFields.length-1) otpFields[i+1].focus(); });
+            f.addEventListener('keydown', e => { if (e.key==='Backspace' && f.value==='' && i>0) otpFields[i-1].focus(); });
+        });
+        const newPw = $('newPasswordInput'), pwBar = $('pwStrengthBar');
+        if (newPw && pwBar) {
+            newPw.addEventListener('input', e => {
+                const v = e.target.value; let s = 0;
+                if (v.length>0) s+=20; if (v.length>8) s+=20; if (/[A-Z]/.test(v)) s+=20; if (/[0-9]/.test(v)) s+=20; if (/[^A-Za-z0-9]/.test(v)) s+=20;
+                pwBar.style.width = s+'%'; pwBar.style.background = s<=40?'#ff4d6d':s<=80?'#ffb100':'#00ff88';
+            });
+        }
+    }
+
+    function _setupSessionRevoke() {
+        document.querySelectorAll('.btn-revoke, #revokeAllSessions').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const isAll = btn.id==='revokeAllSessions';
+                if (confirm(`Revoke ${isAll?'all other sessions':'this session'}?`)) {
+                    if (!isAll) { const row=btn.closest('.session-item'); if (row) { row.style.opacity='0.5'; row.style.pointerEvents='none'; } btn.textContent='Revoked'; }
+                    else alert('All other sessions have been revoked.');
+                }
+            });
+        });
+    }
+
+    function _setupDangerZone() {
+        document.querySelectorAll('.danger-trigger').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const t = btn.getAttribute('data-type');
+                const box = t==='data' ? $('confirmDataDelete') : $('confirmAccountDelete');
+                if (box) { const show = !box.style.display || box.style.display==='none'; box.style.display=show?'flex':'none'; btn.style.display=show?'none':'block'; }
+            });
+        });
+        document.querySelectorAll('.danger-cancel').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const row=btn.closest('.danger-option-row'), box=row&&row.querySelector('.inline-confirm'), trig=row&&row.querySelector('.danger-trigger');
+                if (box) box.style.display='none'; if (trig) trig.style.display='block';
+            });
+        });
+    }
+
+    function _setupPwToggles() {
+        document.querySelectorAll('.pw-toggle-eye').forEach(btn => {
+            btn.addEventListener('click', e => {
+                e.preventDefault();
+                const inp = btn.parentElement.querySelector('input'); if (!inp) return;
+                const isPw = inp.type==='password'; inp.type = isPw?'text':'password';
+                const icon = btn.querySelector('i')||btn.querySelector('svg');
+                if (icon) { icon.setAttribute('data-lucide', isPw?'eye-off':'eye'); if (window.lucide) lucide.createIcons(); }
+            });
+        });
+    }
+
+    function _setupDataExport() {
+        const exportBtn = $('btnExportReport');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', async () => {
+                if (!S.results) { toast('Run an analysis first.', 'error'); return; }
+                const textEl = exportBtn.querySelector('.btn-text');
+                exportBtn.classList.add('active');
+                if (textEl) textEl.textContent = 'Generating...';
+                try {
+                    const csrf = await getCsrf();
+                    const headers = { 'Content-Type': 'application/json' };
+                    if (csrf) headers['X-CSRFToken'] = csrf;
+                    const res = await fetch('/api/download-report', { method:'POST', headers, body:JSON.stringify(S.results), credentials:'include' });
+                    if (!res.ok) throw new Error('Report generation failed.');
+                    const blob = await res.blob(), url = URL.createObjectURL(blob), a = document.createElement('a');
+                    a.href=url; a.download='securepass_report.pdf'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+                    if (textEl) textEl.textContent='Downloaded ✓';
+                    setTimeout(() => { exportBtn.classList.remove('active'); if (textEl) textEl.textContent='Download Report'; }, 2000);
+                } catch (err) { exportBtn.classList.remove('active'); if (textEl) textEl.textContent='Download Report'; toast(err.message||'Download failed.','error'); }
+            });
+        }
+
+        const clearBtn=$('btnClearHistory'), cfm=$('confirmClearHistory'), cancel=$('cancelClearHistory'), done=$('confirmClearHistoryDone');
+        if (clearBtn&&cfm) clearBtn.addEventListener('click', () => { cfm.style.display='flex'; clearBtn.style.display='none'; });
+        if (cancel) cancel.addEventListener('click', () => { cfm.style.display='none'; if (clearBtn) clearBtn.style.display='block'; });
+        if (done) done.addEventListener('click', () => {
+            const list = document.querySelector('.history-list');
+            if (list) { list.style.opacity='0.3'; list.style.pointerEvents='none'; setTimeout(() => { list.innerHTML='<div style="padding:40px;text-align:center;color:var(--text-muted);font-size:13px;">No recent analysis sessions found.</div>'; list.style.opacity='1'; if (cfm) cfm.style.display='none'; }, 800); }
+        });
+
+        document.querySelectorAll('.retention-card').forEach(c => c.addEventListener('click', () => { document.querySelectorAll('.retention-card').forEach(x => x.classList.remove('active')); c.classList.add('active'); }));
+        const kf=$('keepForeverToggle'), ri=$('retentionInfo');
+        if (kf) kf.addEventListener('click', () => {
+            kf.classList.toggle('active'); const on=kf.classList.contains('active');
+            document.querySelectorAll('.retention-card').forEach(c => c.classList.toggle('disabled',on));
+            if (ri) { ri.textContent=on?'Your data will never be automatically deleted.':'Data older than the selected period is automatically purged.'; ri.style.color=on?'#00ff88':'var(--text-muted)'; }
+        });
+
+        const iz=$('importUploadZone'), ii=$('importFileInput'), ir=$('importFileInfoRow'), irm=$('btnRemoveImportFile'), ib=$('btnImportData');
+        if (iz&&ii) {
+            iz.addEventListener('click', ()=>ii.click());
+            iz.addEventListener('dragover', e=>{e.preventDefault();iz.classList.add('drag-over');});
+            iz.addEventListener('dragleave', ()=>iz.classList.remove('drag-over'));
+            iz.addEventListener('drop', e=>{e.preventDefault();iz.classList.remove('drag-over');if(e.dataTransfer.files[0])_hi(e.dataTransfer.files[0]);});
+            ii.addEventListener('change', e=>{if(e.target.files[0])_hi(e.target.files[0]);});
+        }
+        function _hi(f) {
+            const n=$('importFileName'),s=$('importFileSize');
+            if(n)n.textContent=f.name; if(s)s.textContent=(f.size/(1024*1024)).toFixed(2)+' MB';
+            if(iz)iz.style.display='none'; if(ir)ir.classList.add('active');
+        }
+        if (irm) irm.addEventListener('click', e=>{e.stopPropagation();if(ir)ir.classList.remove('active');if(ii)ii.value='';setTimeout(()=>{if(iz)iz.style.display='flex';},200);});
+        if (ib) ib.addEventListener('click', ()=>{
+            if (!ir||!ir.classList.contains('active')){alert('Please select a file first.');return;}
+            const t=ib.querySelector('.btn-text'); ib.classList.add('active'); if(t)t.textContent='Importing...';
+            setTimeout(()=>{if(t)t.textContent='Imported ✓';setTimeout(()=>{ib.classList.remove('active');if(t)t.textContent='Import & Restore';},1500);},2000);
+        });
+    }
+
+    function _setupNotificationToggles() {
+        const emailTs = document.querySelectorAll('.email-notification-toggle'), epw = $('emailPreviewWrap');
+        emailTs.forEach(t => t.addEventListener('click', () => {
+            t.classList.toggle('active');
+            const anyOn = [...emailTs].some(x=>x.classList.contains('active'));
+            if (epw) { if (anyOn) { epw.style.display='flex'; setTimeout(()=>epw.classList.add('show'),10); } else { epw.classList.remove('show'); setTimeout(()=>epw.style.display='none',200); } }
+        }));
+
+        const ib=$('instantBreachToggle'), bs=$('breachSeverityWrap');
+        if (ib&&bs) ib.addEventListener('click', ()=>{ ib.classList.toggle('active'); const on=ib.classList.contains('active'); if(on){bs.style.display='block';setTimeout(()=>bs.classList.add('show'),10);}else{bs.classList.remove('show');setTimeout(()=>bs.style.display='none',200);} });
+
+        document.querySelectorAll('.breach-severity-pills .nav-pill').forEach(p => p.addEventListener('click', ()=>{ document.querySelectorAll('.breach-severity-pills .nav-pill').forEach(x=>x.classList.remove('active')); p.classList.add('active'); }));
+
+        const sdt=$('scoreDropToggle'), stw=$('scoreThresholdWrap'), sti=$('scoreThresholdInput'), sbf=$('scoreBarFill');
+        if (sdt&&stw) sdt.addEventListener('click', ()=>{ sdt.classList.toggle('active'); const on=sdt.classList.contains('active'); if(on){stw.style.display='block';setTimeout(()=>stw.classList.add('show'),10);}else{stw.classList.remove('show');setTimeout(()=>stw.style.display='none',200);} });
+        if (sti&&sbf) sti.addEventListener('input', e=>sbf.style.width=e.target.value+'%');
+
+        const df=$('digestFreqSelect'), fp=$('freqDescPill');
+        const fds={'immediately':'Notifications will be sent as soon as they are triggered.','hour':'Notifications will be bundled and sent once every hour.','6hours':'Notifications will be bundled and sent every 6 hours.','daily':'You will receive one consolidated digest every 24 hours.','weekly':'A single weekly breakdown will be sent every Monday.'};
+        if (df&&fp) df.addEventListener('change', e=>{ fp.classList.remove('show'); setTimeout(()=>{ fp.textContent=fds[e.target.value]||''; fp.classList.add('show'); },200); });
+    }
+
+    /* ══ AI DRAWER ══════════════════════════════════════ */
+    function setupAIDrawer() {
+        const openBtn=$('openAIDrawer'), closeBtn=$('closeAIDrawer'), drawer=$('aiDrawer'), overlay=$('aiDrawerOverlay');
+        function open() { if(drawer)drawer.classList.add('active'); if(overlay)overlay.classList.add('active'); document.body.style.overflow='hidden'; }
+        function close() { if(drawer)drawer.classList.remove('active'); if(overlay)overlay.classList.remove('active'); document.body.style.overflow=''; }
+        if (openBtn) openBtn.addEventListener('click', open);
+        if (closeBtn) closeBtn.addEventListener('click', close);
+        if (overlay) overlay.addEventListener('click', close);
+    }
+
+    /* ══ UPLOAD ═════════════════════════════════════════ */
+    function setupUpload() {
+        const zone=$('uploadZone'), input=$('fileInput'), rem=$('removeFileBtn'), abtn=$('analyzeBtn');
+        if (zone) {
+            zone.addEventListener('click', ()=>input&&input.click());
+            zone.addEventListener('dragover', e=>{e.preventDefault();zone.classList.add('drag-over');});
+            zone.addEventListener('dragleave', ()=>zone.classList.remove('drag-over'));
+            zone.addEventListener('drop', e=>{e.preventDefault();zone.classList.remove('drag-over');if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);});
+        }
+        if (input) input.addEventListener('change', e=>{if(e.target.files[0])handleFile(e.target.files[0]);});
+        if (rem)   rem.addEventListener('click', e=>{e.stopPropagation();clearFile();});
+        if (abtn)  abtn.addEventListener('click', runAnalysis);
+    }
+
+    function handleFile(file) {
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (!['txt','csv'].includes(ext)) { toast('Use .txt or .csv files.','error'); return; }
+        if (file.size > 25*1024*1024) { toast('File too large — max 25 MB.','error'); return; }
+        S.file = file;
+        const fn=$('fileName'), fi=$('fileInfo');
+        if (fn) fn.textContent = `${file.name}  (${fmtSize(file.size)})`;
+        if (fi) fi.style.display = 'block';
+    }
+
+    function clearFile() {
+        S.file = null;
+        const inp=$('fileInput'), fi=$('fileInfo');
+        if (inp) inp.value = ''; if (fi) fi.style.display = 'none';
+    }
+
+    /* ══ ANALYSIS ═══════════════════════════════════════ */
+    async function runAnalysis() {
+        if (S.submitting) return;
+        if (!S.user) { toast('Please sign in to analyse datasets.','error'); setTimeout(()=>{window.location.href='/login';},1400); return; }
+        if (!S.file) { toast('Please select a file first.','error'); return; }
+
+        S.submitting = true;
+        const inp=$('inputSection'), load=$('loadingSection');
+        if (inp) inp.style.display='none'; if (load) load.style.display='block';
+        startSteps();
+
+        try {
+            const csrf = await getCsrf();
+            const form = new FormData();
+            form.append('file', S.file); form.append('enable_breach_check','1');
+            const headers = {}; if (csrf) headers['X-CSRFToken'] = csrf;
+            const res = await fetch('/api/analyze', { method:'POST', headers, body:form, credentials:'include' });
+            if (res.status===401) { toast('Session expired — please log in.','error'); window.location.href='/login'; return; }
+            if (!res.ok) { const err=await res.json().catch(()=>({})); throw new Error(err.error||`Server error ${res.status}`); }
+            S.results = await res.json();
+            completeSteps();
+            setTimeout(() => {
+                if (load) load.style.display='none';
+                renderResults(S.results);
+                renderAIDrawer(S.results.ai_insights);
+                toast('Analysis complete!','success');
+            }, 500);
+        } catch (err) {
+            if (load) load.style.display='none'; if (inp) inp.style.display='block';
+            toast(err.message||'Analysis failed.','error');
+        } finally { S.submitting = false; }
+    }
+
+    /* ── Steps animation with progress bar ────────────── */
+    const STEPS = ['step-parse','step-detect','step-risk','step-breach','step-ai','step-report'];
+
+    function startSteps() {
+        STEPS.forEach(id => {
+            const el=$(id); if (!el) return;
+            el.classList.remove('done','active');
+            const ic=el.querySelector('i')||el.querySelector('svg'); if (ic) ic.setAttribute('data-lucide','circle');
+            const bar=el.querySelector('.step-progress-bar'); if (bar) bar.style.width='0%';
+        });
+        if (window.lucide) lucide.createIcons();
+        let cur=0; const dur=900;
+        const runStep = () => {
+            if (cur===STEPS.length) return;
+            const el=$(STEPS[cur]); if (!el) { cur++; setTimeout(runStep,100); return; }
+            el.classList.add('active');
+            const bar=el.querySelector('.step-progress-bar'); let t0=null;
+            const anim = ts => {
+                if (!t0) t0=ts; const p=Math.min((ts-t0)/dur,1);
+                if (bar) bar.style.width=(p*100)+'%';
+                if (p<1) { requestAnimationFrame(anim); }
+                else {
+                    el.classList.remove('active'); el.classList.add('done');
+                    const ic=el.querySelector('i')||el.querySelector('svg'); if (ic) ic.setAttribute('data-lucide','check-circle');
+                    if (window.lucide) lucide.createIcons(); cur++; setTimeout(runStep,120);
+                }
+            };
+            requestAnimationFrame(anim);
+        };
+        runStep();
+    }
+
+    function completeSteps() {
+        STEPS.forEach(id => {
+            const el=$(id); if (!el) return;
+            el.classList.remove('active'); el.classList.add('done');
+            const ic=el.querySelector('i')||el.querySelector('svg'); if (ic) ic.setAttribute('data-lucide','check-circle');
+            const bar=el.querySelector('.step-progress-bar'); if (bar) bar.style.width='100%';
+        });
+        if (window.lucide) lucide.createIcons();
+    }
+
+    /* ══ RENDER RESULTS ═════════════════════════════════ */
+    function renderResults(data) {
         const ov = data.overview || {};
-        bucketLabels = ['< 8', '8–11', '12–15', '16+'];
-        const total  = ov.total_passwords || 1;
-        const weak   = ov.weak_passwords  || 0;
-        const med2   = ov.medium_passwords || 0;
-        const strong = ov.strong_passwords || 0;
-        bucketData   = [weak, Math.round(med2 * 0.6), Math.round(med2 * 0.4), strong];
-      }
-      const barColors = bucketData.map((_, i) => {
-        const palette = [C_RED, C_AMBER, C_CYAN, C_GREEN];
-        return palette[i % palette.length] + 'cc';
-      });
-      const barBorder = bucketData.map((_, i) => {
-        const palette = [C_RED, C_AMBER, C_CYAN, C_GREEN];
-        return palette[i % palette.length];
-      });
-      window._ch_length = new Chart(ctxLen, {
-        type: 'bar',
-        data: {
-          labels: bucketLabels,
-          datasets: [{
-            label: 'Passwords',
-            data:  bucketData,
-            backgroundColor: barColors,
-            borderColor:     barBorder,
-            borderWidth: 2,
-            borderRadius: 6,
-            borderSkipped: false,
-          }],
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          animation: { duration: 800, easing: 'easeOutQuart' },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              ...tooltipDefaults,
-              callbacks: { label: ctx => `  ${ctx.parsed.y.toLocaleString()} passwords` },
-            },
-          },
-          scales: {
-            x: {
-              grid: { color: C_GRID },
-              ticks: { color: C_TEXT },
-            },
-            y: {
-              grid: { color: C_GRID },
-              ticks: { color: C_TEXT, precision: 0 },
-              beginAtZero: true,
-            },
-          },
-        },
-      });
+        [$('resultsSection'),$('simulationSection'),$('scoreWrapper'),$('resetAction')].forEach(el => { if (el) el.style.display='block'; });
+
+        setText('resTotalPw',   ov.total_passwords);
+        setText('resUniquePw',  ov.unique_passwords);
+        setText('resAvgLength', ov.average_length!=null ? Number(ov.average_length).toFixed(1) : '—');
+
+        const rd=data.risk_distribution||{};
+        const high=rd['High Risk']??rd.high??ov.weak_passwords??0;
+        const med =rd['Medium Risk']??rd.medium??ov.medium_passwords??0;
+        const low =rd['Low Risk']??rd.low??ov.strong_passwords??0;
+        const tot =ov.total_passwords||1;
+
+        setText('resHighRisk', high);
+        setText('pctHigh',   pct(high,tot)+'%');
+        setText('pctMedium', pct(med,tot)+'%');
+        setText('pctLow',    pct(low,tot)+'%');
+
+        animateScore(Math.round(ov.risk_score||0), data.risk_level);
+        initRealCharts(data);
+        renderCompliance(data.compliance);
+
+        if (data.breach_statistics||data.breach_stats) {
+            const bs=$('breachSection'), bc=$('breachContainer');
+            if (bs) bs.style.display='block';
+            if (bc&&window.HIBP) HIBP.renderBreachStats(data.breach_statistics||data.breach_stats,bc);
+            const pill=$('pillBreach'); if (pill) { pill.textContent='On'; pill.style.color='var(--accent)'; }
+        }
+
+        renderAttackScenarios(data.attack_scenarios);
+        renderPolicyImpact(data.policy_impact, data.recommended_password_policy, data.password_examples);
+        if (window.lucide) lucide.createIcons();
     }
 
-    // ── 3. Character Coverage — Radar ─────────────────────────────────
-    destroyIfExists('strength');
-    const ctxStr = document.getElementById('chartStrength');
-    if (ctxStr) {
-      const comp = (data.patterns && data.patterns.character_composition) ? data.patterns.character_composition : {};
-      const radarData = [
-        comp.uppercase ? (comp.uppercase.percentage || 0) : 0,
-        comp.lowercase ? (comp.lowercase.percentage || 0) : 0,
-        comp.digits    ? (comp.digits.percentage    || 0) : 0,
-        comp.special   ? (comp.special.percentage   || 0) : 0,
-        data.overview  ? Math.min(100, (data.overview.average_length || 0) * 5) : 0,
-      ];
-      window._ch_strength = new Chart(ctxStr, {
-        type: 'radar',
-        data: {
-          labels: ['Uppercase', 'Lowercase', 'Digits', 'Special Chars', 'Length Score'],
-          datasets: [{
-            label: 'Coverage %',
-            data:  radarData,
-            backgroundColor: 'rgba(0,212,255,0.12)',
-            borderColor:     C_CYAN,
-            borderWidth:     2,
-            pointBackgroundColor: C_CYAN,
-            pointBorderColor:    '#0d1117',
-            pointHoverBackgroundColor: '#fff',
-            pointRadius: 5,
-            pointHoverRadius: 7,
-          }],
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          animation: { duration: 900 },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              ...tooltipDefaults,
-              callbacks: { label: ctx => `  ${ctx.label}: ${ctx.parsed.r.toFixed(1)}%` },
-            },
-          },
-          scales: {
-            r: {
-              min: 0, max: 100,
-              grid:      { color: C_GRID },
-              angleLines: { color: C_GRID },
-              pointLabels: { color: C_TEXT, font: { size: 12 } },
-              ticks: {
-                display: true, stepSize: 25,
-                color: C_MUTED,
-                backdropColor: 'transparent',
-              },
-            },
-          },
-        },
-      });
+    function animateScore(score, riskLevel) {
+        const numEl=$('scoreNum'), ringEl=$('scoreRingFill'), txtEl=qs('.score-label .txt'), badge=$('riskBadge');
+        const level=(riskLevel||'').toLowerCase();
+        const stroke=level.includes('high')?'#ff5f57':level.includes('medium')?'#febc2e':'#00ff88';
+        if (ringEl) { ringEl.style.stroke=stroke; ringEl.style.strokeDasharray=`${(score/100)*283} 283`; ringEl.style.transition='stroke-dasharray 1.2s cubic-bezier(.4,0,.2,1),stroke .5s'; ringEl.style.transform='rotate(-90deg)'; ringEl.style.transformOrigin='center'; }
+        const lbl = level.includes('high')?'HIGH RISK':level.includes('medium')?'MODERATE':'SECURE';
+        if (txtEl) txtEl.textContent=lbl;
+        if (badge) { badge.textContent=(riskLevel||'Unknown').toUpperCase(); badge.style.background=level.includes('high')?'rgba(255,95,87,0.15)':level.includes('medium')?'rgba(254,188,46,0.15)':'rgba(0,184,110,0.15)'; badge.style.color=level.includes('high')?'#ff5f57':level.includes('medium')?'#febc2e':'#28c840'; }
+        const t0=performance.now(), dur=1800;
+        const step=now=>{ const p=Math.min(1,1-Math.pow(2,-10*(now-t0)/dur)); if(numEl)numEl.textContent=Math.floor(p*score); if(p<1)requestAnimationFrame(step); };
+        requestAnimationFrame(step);
     }
 
-    // ── 4. Pattern Breakdown — Horizontal Bar ─────────────────────────
-    destroyIfExists('pattern');
-    const ctxPat = document.getElementById('chartPattern');
-    if (ctxPat) {
-      const p = (data.patterns && data.patterns.patterns) ? data.patterns.patterns : (data.patterns || {});
-      const patternMap = [
-        { label: 'Dictionary Words',     key: 'dictionary_based',      color: C_RED    },
-        { label: 'Name Based',           key: 'name_based',            color: C_ORANGE },
-        { label: 'Numeric Suffix',       key: 'numeric_suffix',        color: C_AMBER  },
-        { label: 'Keyboard Walk',        key: 'keyboard_walk',         color: C_CYAN   },
-        { label: 'Capitalisation Misuse',key: 'capitalization_misuse', color: C_BLUE   },
-        { label: 'Leet Speak',           key: 'leetspeak',             color: C_PURPLE },
-        { label: 'Sequential Numbers',   key: 'sequential_numbers',    color: C_TEAL   },
-      ];
-      const filtered = patternMap.filter(pm => {
-        const v = p[pm.key];
-        return v && (v.percentage > 0 || v.count > 0);
-      });
-      const patLabels = filtered.map(pm => pm.label);
-      const patData   = filtered.map(pm => {
-        const v = p[pm.key];
-        return v ? (v.percentage || 0) : 0;
-      });
-      const patColors = filtered.map(pm => pm.color + 'cc');
-      const patBorder = filtered.map(pm => pm.color);
-
-      window._ch_pattern = new Chart(ctxPat, {
-        type: 'bar',
-        data: {
-          labels: patLabels.length ? patLabels : ['No patterns detected'],
-          datasets: [{
-            label: '% of passwords',
-            data:  patData.length  ? patData  : [0],
-            backgroundColor: patColors.length ? patColors : ['rgba(72,79,88,0.5)'],
-            borderColor:     patBorder.length ? patBorder : [C_MUTED],
-            borderWidth: 2,
-            borderRadius: 6,
-            borderSkipped: false,
-          }],
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          indexAxis: 'y',
-          animation: { duration: 800, easing: 'easeOutQuart' },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              ...tooltipDefaults,
-              callbacks: { label: ctx => `  ${ctx.parsed.x.toFixed(1)}% of passwords` },
-            },
-          },
-          scales: {
-            x: {
-              min: 0, max: 100,
-              grid:  { color: C_GRID },
-              ticks: { color: C_TEXT, callback: v => v + '%' },
-            },
-            y: {
-              grid:  { display: false },
-              ticks: { color: C_TEXT, font: { size: 12 } },
-            },
-          },
-        },
-      });
+    function renderCompliance(compliance) {
+        const wrap=$('complianceWrap'); if (!wrap||!compliance) return;
+        const items=[{label:'NIST 800-63B',status:compliance.nist_compliance_status||'N/A'},{label:'OWASP Top 10',status:compliance.owasp_risk_level||'N/A'},{label:'ISO/IEC 27001',status:compliance.iso_compliance_status||compliance.iso_status||'N/A'}];
+        wrap.innerHTML=items.map(item=>{
+            const s=(item.status||'').toLowerCase(), ok=s==='compliant'||s==='low', mid=s.includes('partial')||s==='medium';
+            const bg=ok?'rgba(0,184,110,0.12)':mid?'rgba(254,188,46,0.12)':'rgba(255,95,87,0.12)', col=ok?'#00b86e':mid?'#febc2e':'#ff5f57';
+            return `<div class="compliance-row"><span style="font-size:13px">${esc(item.label)}</span><span class="status-pill" style="background:${bg};color:${col}">${esc(item.status)}</span></div>`;
+        }).join('');
+        const sec=$('complianceSection'), pill=$('pillCompliance');
+        if (sec) sec.style.display='block'; if (pill) { pill.textContent='On'; pill.style.color='var(--accent)'; }
     }
-  }
 
-  /* ================================================================
-     PASSWORD CHECKER
-  ================================================================ */
-  function setupPasswordChecker() {
-    const inp        = $('pwInput');
-    const eye        = $('pwEye');
-    const checkBtn   = $('pwCheckBtn');
-    const hibpBtn    = $('pwHIBPBtn');
-    const strengthFill = $('pwStrengthFill');
-
-    if (eye) eye.addEventListener('click', function () {
-      if (!inp) return;
-      inp.type = inp.type === 'password' ? 'text' : 'password';
-      const icon = eye.querySelector('i');
-      if (icon) icon.className = inp.type === 'password' ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash';
-    });
-
-    if (inp) inp.addEventListener('input', function () {
-      clearTimeout(state.pwCheckTimeout);
-      updateLocalStrength(inp.value);
-    });
-
-    if (checkBtn) checkBtn.addEventListener('click', async function () {
-      const pw = inp?.value?.trim();
-      if (!pw) { toast('Enter a password first.', 'error'); return; }
-      await runPasswordCheck(pw);
-    });
-
-    if (hibpBtn && window.HIBP) {
-      hibpBtn.addEventListener('click', async function () {
-        const pw = inp?.value?.trim();
-        if (!pw) { toast('Enter a password first.', 'error'); return; }
-        hibpBtn.disabled = true;
-        const c = $('hibpResultWrap');
-        if (c) { c.style.display = 'block'; c.innerHTML = '<div class="hibp-checking"><div class="hibp-spinner"></div> Checking breach database…</div>'; }
-        const result = await HIBP.checkPassword(pw);
-        if (c) { HIBP.renderResult(result, c); }
-        hibpBtn.disabled = false;
-      });
+    function renderAttackScenarios(attacks) {
+        const term=$('attackResults'); if (!term||!attacks||!attacks.length) return;
+        term.innerHTML='';
+        attacks.forEach((a,i)=>setTimeout(()=>{
+            const div=document.createElement('div'), p=(a.probability||0).toFixed(1), col=a.probability>60?'#ff5f57':a.probability>30?'#febc2e':'#00d4ff';
+            div.className='log-dim'; div.innerHTML=`<span class="terminal-prompt">$</span><span style="color:${col}">[${p}%]</span> ${esc(a.name)}: ${esc(a.description)} (${(a.count||0).toLocaleString()}/${(a.total||0).toLocaleString()})`;
+            term.appendChild(div); term.scrollTop=term.scrollHeight;
+        }, i*200));
     }
-  }
 
-  function updateLocalStrength(pw) {
-    const fill  = $('pwStrengthFill');
-    const label = $('pwStrengthLabel');
-    if (!fill) return;
-    const checks = [
-      pw.length >= 8, /[A-Z]/.test(pw), /[a-z]/.test(pw),
-      /[0-9]/.test(pw), /[^A-Za-z0-9]/.test(pw),
-      pw.length >= 12, pw.length >= 16,
-    ];
-    const score  = checks.filter(Boolean).length;
-    const pct    = Math.round(score / 7 * 100);
-    const colors = ['var(--border)','var(--red)','var(--red)','var(--amber)','var(--amber)','var(--green)','var(--green)','var(--green)'];
-    fill.style.width      = pct + '%';
-    fill.style.background = colors[score];
-    if (label) {
-      const lbls = ['','Very Weak','Weak','Fair','Good','Strong','Very Strong','Excellent'];
-      label.textContent = pw ? lbls[score] : '';
+    function renderPolicyImpact(policy, recommended, examples) {
+        if (!policy) return;
+        let wrap=$('policySection');
+        if (!wrap) { wrap=document.createElement('div'); wrap.id='policySection'; wrap.className='card'; wrap.style.marginTop='1.25rem'; const col=qs('.right-col'); if (col) col.appendChild(wrap); }
+        const imp=policy.projected_improvement||{};
+        const rows=[['Current Score',(policy.current_score||0)+'/100'],['Projected Score',(imp.projected_score||0)+'/100'],['Improvement','+'+(imp.improvement||0).toFixed(1)+' pts']];
+        wrap.innerHTML=`<div class="card-header"><i data-lucide="trending-up"></i><span>Policy Impact</span></div>${rows.map(([l,v])=>`<div class="policy-row"><span style="font-size:12px">${esc(l)}</span><span class="policy-val">${esc(v)}</span></div>`).join('')}${recommended?`<div class="ai-insight-item" style="margin-top:12px;font-size:11px">${esc(typeof recommended==='string'?recommended:recommended.description||'')}</div>`:''}`;
+        if (window.lucide) lucide.createIcons();
     }
-  }
 
-  async function runPasswordCheck(pw) {
-    const btn = $('pwCheckBtn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Checking…'; }
-    try {
-      const res  = await fetch('/api/check-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password: pw }),
-        credentials: 'include',
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || 'Check failed');
-      renderPasswordCheckResult(data);
-    } catch (err) {
-      toast(err.message || 'Password check failed.', 'error');
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = 'Analyse'; }
+    function renderAIDrawer(insights) {
+        const wrap=$('insightsWrap'); if (!wrap||!insights||!insights.length) return;
+        wrap.innerHTML=insights.slice(0,5).map((ins,i)=>`<div class="ai-insight-card"><div class="insight-num">${String(i+1).padStart(2,'0')}</div><div class="insight-body"><h6>Security Insight #${i+1}</h6><p>${esc(ins)}</p></div></div>`).join('');
+        if (window.lucide) lucide.createIcons();
     }
-  }
 
-  function renderPasswordCheckResult(data) {
-    const wrap = $('pwResultWrap');
-    if (!wrap) return;
-    const risk   = (data.risk_level || 'unknown').toLowerCase();
-    const color  = risk === 'high' ? 'var(--red)' : risk === 'medium' ? 'var(--amber)' : 'var(--green)';
-    const checks = [
-      ['Uppercase',  data.has_uppercase],
-      ['Lowercase',  data.has_lowercase],
-      ['Number',     data.has_numbers],
-      ['Symbol',     data.has_special],
-    ];
-    wrap.style.display = 'block';
-    wrap.innerHTML = `
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
-        <div class="risk-badge risk-${risk}" style="border-color:${color};color:${color}">
-          ${(data.risk_level || 'Unknown').toUpperCase()}
-        </div>
-        <span style="font-family:var(--font-display);font-size:1.5rem;font-weight:800">${data.strength_score ?? '—'}<span style="font-size:0.8rem;font-weight:400;color:var(--text-muted)">/100</span></span>
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
-        ${checks.map(([lbl,ok]) => `<span class="tag" style="border-color:${ok ? 'var(--green)' : 'var(--border)'};color:${ok ? 'var(--green)' : 'var(--text-dim)'}">
-          <i class="fa-solid ${ok ? 'fa-check' : 'fa-xmark'}"></i> ${lbl}</span>`).join('')}
-      </div>
-      ${data.ai_recommendation ? `<div class="pw-detail"><i class="fa-solid fa-lightbulb" style="color:var(--amber)"></i> ${esc(data.ai_recommendation)}</div>` : ''}`;
-  }
+    /* ══ CHARTS ═════════════════════════════════════════ */
+    function initRealCharts(data) {
+        Object.values(S.charts).forEach(c=>{try{c.destroy();}catch{}});
+        S.charts={};
+        const ov=data.overview||{}, rd=data.risk_distribution||{};
+        const high=rd['High Risk']??rd.high??ov.weak_passwords??0;
+        const med =rd['Medium Risk']??rd.medium??ov.medium_passwords??0;
+        const low =rd['Low Risk']??rd.low??ov.strong_passwords??0;
 
-  /* ================================================================
-     RESULTS ACTIONS (New analysis, Download)
-  ================================================================ */
-  function setupResultsActions() {
-    const newBtn = $('newAnalysisBtn');
-    const dlBtn  = $('downloadBtn');
-    if (newBtn) newBtn.addEventListener('click', resetDashboard);
-    if (dlBtn)  dlBtn.addEventListener('click',  downloadReport);
-  }
+        // 1. Doughnut — legend right
+        const c1=$('chartRisk');
+        if (c1) S.charts.risk=new Chart(c1.getContext('2d'),{type:'doughnut',data:{labels:['High Risk','Medium Risk','Low Risk'],datasets:[{data:[high,med,low],backgroundColor:['#ff5f57','#febc2e','#00b86e'],borderWidth:0,hoverOffset:12}]},options:{cutout:'72%',maintainAspectRatio:false,plugins:{legend:{display:true,position:'right',labels:{color:'#666',usePointStyle:true,font:{size:11,family:'JetBrains Mono'}}}}}});
 
-  async function downloadReport() {
-    if (!state.analysisResults) { toast('No results to download.', 'error'); return; }
-    const btn = $('downloadBtn');
-    if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Generating…'; }
-    try {
-      const res = await fetch('/api/download-report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(state.analysisResults),
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error('Report generation failed');
-      const blob = await res.blob();
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement('a');
-      a.href = url; a.download = 'securepass_report.pdf';
-      document.body.appendChild(a); a.click();
-      document.body.removeChild(a); URL.revokeObjectURL(url);
-      toast('Report downloaded!', 'success');
-    } catch (err) {
-      toast(err.message || 'Download failed.', 'error');
-    } finally {
-      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-download"></i> Download Report'; }
+        // 2. Horizontal bar — length distribution
+        const c2=$('chartLength');
+        if (c2) {
+            const ld=data.patterns?.length_distribution;
+            let labels,values;
+            if (ld&&typeof ld==='object'&&Object.keys(ld).length) { labels=Object.keys(ld); values=Object.values(ld); }
+            else { labels=['<8 chars','8-11 chars','12-15 chars','16+ chars']; values=[ov.weak_passwords||0,Math.round((ov.medium_passwords||0)*0.6),Math.round((ov.medium_passwords||0)*0.4),ov.strong_passwords||0]; }
+            S.charts.length=new Chart(c2.getContext('2d'),{type:'bar',data:{labels,datasets:[{label:'Length',data:values,backgroundColor:'rgba(0,212,255,0.4)',borderColor:'#00d4ff',borderWidth:1,borderRadius:4}]},options:{indexAxis:'y',maintainAspectRatio:false,scales:{x:{grid:{display:false},ticks:{color:'#666',font:{size:10}}},y:{grid:{display:false},ticks:{color:'#888',font:{size:11}}}},plugins:{legend:{display:false}}}});
+        }
+
+        // 3. Radar — composition
+        const c3=$('chartStrength');
+        if (c3) {
+            const comp=data.patterns?.character_composition||{};
+            S.charts.strength=new Chart(c3.getContext('2d'),{type:'radar',data:{labels:['Entropy','Diversity','Complexity','Novelty','Resilience'],datasets:[{label:'Baseline',data:[comp.uppercase?.percentage||0,comp.lowercase?.percentage||0,comp.digits?.percentage||0,comp.special?.percentage||0,Math.min(100,(ov.average_length||0)*5)],backgroundColor:'rgba(0,212,255,0.1)',borderColor:'#00d4ff',borderWidth:2,pointBackgroundColor:'#00d4ff'}]},options:{maintainAspectRatio:false,scales:{r:{angleLines:{color:'rgba(255,255,255,0.05)'},grid:{color:'rgba(255,255,255,0.05)'},pointLabels:{color:'#888',font:{size:11,family:'Inter'}},ticks:{display:false}}},plugins:{legend:{display:false}}}});
+        }
+
+        // 4. Pattern horizontal bars
+        const c4=$('chartPattern');
+        if (c4) {
+            const p=data.patterns?.patterns||{};
+            const pm=[{label:'Dictionary',key:'dictionary_based',color:'#ff5f57'},{label:'Name',key:'name_based',color:'#ff8c42'},{label:'Num Suffix',key:'numeric_suffix',color:'#febc2e'},{label:'Keyboard',key:'keyboard_walk',color:'#00d4ff'},{label:'Cap Misuse',key:'capitalization_misuse',color:'#9b59ff'},{label:'Leet',key:'leetspeak',color:'#00e5cc'},{label:'Sequential',key:'sequential_numbers',color:'#00b86e'}].filter(x=>p[x.key]&&(p[x.key].percentage||0)>0);
+            if (pm.length) {
+                S.charts.pattern=new Chart(c4.getContext('2d'),{type:'bar',data:{labels:pm.map(x=>x.label),datasets:[{data:pm.map(x=>p[x.key]?.percentage||0),backgroundColor:pm.map(x=>x.color+'cc'),borderWidth:0,borderRadius:3}]},options:{indexAxis:'y',maintainAspectRatio:false,scales:{x:{grid:{display:false},ticks:{color:'#666',font:{size:11}}},y:{grid:{display:false},ticks:{color:'#888',font:{size:11}}}},plugins:{legend:{display:false}}}});
+            } else {
+                S.charts.pattern=new Chart(c4.getContext('2d'),{type:'bar',data:{labels:['Wk1','Wk2','Wk3','Wk4','Wk5','Wk6','Wk7','Wk8'],datasets:[{label:'Score',data:[45,52,48,70,65,80,85,Math.round(ov.risk_score||0)],backgroundColor:'rgba(0,212,255,0.2)',borderColor:'#00d4ff',borderWidth:1}]},options:{maintainAspectRatio:false,scales:{x:{grid:{display:false},ticks:{color:'#666',font:{size:11}}},y:{grid:{color:'rgba(255,255,255,0.03)'},ticks:{color:'#666',font:{size:11}}}},plugins:{legend:{display:false}}}});
+            }
+        }
     }
-  }
 
-  function resetDashboard() {
-    state.analysisResults = null;
-    clearFile();
-    showSection('input');
-    const dl = $('downloadBtn');
-    if (dl) dl.style.display = 'none';
-    const pwWrap = $('pwResultWrap');
-    if (pwWrap) pwWrap.style.display = 'none';
-    const hibpWrap = $('hibpResultWrap');
-    if (hibpWrap) { hibpWrap.style.display = 'none'; hibpWrap.innerHTML = ''; }
-  }
+    /* ══ TOGGLES ════════════════════════════════════════ */
+    function setupToggles() {
+        const map={toggleBreach:'breachSection',toggleAI:'aiInsightsSection',toggleCompliance:'complianceSection'};
+        Object.entries(map).forEach(([btnId,secId])=>{
+            const btn=$(btnId); if (!btn) return;
+            btn.addEventListener('click', ()=>{
+                const pill=btn.querySelector('span'), sec=$(secId); if (!sec) return;
+                const isOn=sec.style.display!=='none'&&sec.style.display!=='';
+                sec.style.display=isOn?'none':'block';
+                if (pill) { pill.textContent=isOn?'Off':'On'; pill.style.color=isOn?'var(--text-muted)':'var(--accent)'; }
+            });
+        });
+    }
 
-  /* ================================================================
-     SECTION SWITCHING
-  ================================================================ */
-  function showSection(name) {
-    ['input','loading','results'].forEach(n => {
-      const el = $(n + 'Section');
-      if (el) el.style.display = n === name ? 'block' : 'none';
-    });
-  }
+    /* ══ SIMULATION ═════════════════════════════════════ */
+    function setupSimulation() {
+        const runBtn=$('btnRunSim'), dlBtn=$('downloadBtn');
+        if (runBtn) {
+            runBtn.addEventListener('click', ()=>{
+                const term=$('attackResults'); if (!term) return; term.innerHTML='';
+                if (S.results&&S.results.attack_scenarios&&S.results.attack_scenarios.length) {
+                    S.results.attack_scenarios.forEach((a,i)=>setTimeout(()=>{
+                        const div=document.createElement('div'), p=(a.probability||0).toFixed(1), col=a.probability>60?'#ff5f57':a.probability>30?'#febc2e':'#00d4ff';
+                        div.className='log-dim'; div.innerHTML=`<span class="terminal-prompt">$</span><span style="color:${col}">[${p}%]</span> ${esc(a.name)}: ${esc(a.description)} (${(a.count||0).toLocaleString()} of ${(a.total||0).toLocaleString()})`;
+                        term.appendChild(div); term.scrollTop=term.scrollHeight;
+                    }, i*280));
+                } else {
+                    [{text:'No dataset loaded. Upload a file first.',cls:'log-dim'}].forEach((l,i)=>setTimeout(()=>{
+                        const div=document.createElement('div'); div.className=l.cls; div.innerHTML=`<span class="terminal-prompt">$</span>${esc(l.text)}`; term.appendChild(div);
+                    },i*200));
+                }
+            });
+        }
+        if (dlBtn) dlBtn.addEventListener('click', downloadReport);
+    }
 
-  /* ================================================================
-     CSRF
-  ================================================================ */
-  let _csrf = null;
-  async function getCsrfToken() {
-    if (_csrf) return _csrf;
-    try {
-      const r = await fetch('/api/csrf-token');
-      const d = await r.json();
-      _csrf = d.csrf_token || null;
-    } catch {}
-    return _csrf;
-  }
+    async function downloadReport() {
+        if (!S.results) { toast('Run an analysis first.','error'); return; }
+        const btn=$('downloadBtn'); if (btn) btn.disabled=true;
+        try {
+            const csrf=await getCsrf(), headers={'Content-Type':'application/json'}; if (csrf) headers['X-CSRFToken']=csrf;
+            const res=await fetch('/api/download-report',{method:'POST',headers,body:JSON.stringify(S.results),credentials:'include'});
+            if (!res.ok) throw new Error('Report generation failed.');
+            const blob=await res.blob(), url=URL.createObjectURL(blob), a=document.createElement('a');
+            a.href=url; a.download='securepass_report.pdf'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+            toast('Report downloaded!','success');
+        } catch (err) { toast(err.message||'Download failed.','error'); }
+        finally { if (btn) btn.disabled=false; }
+    }
 
-  /* ================================================================
-     TOAST
-  ================================================================ */
-  function toast(msg, type) {
-    type = type || 'info';
-    const container = $('toastContainer');
-    if (!container) { console.log('[TOAST]', msg); return; }
-    const el = document.createElement('div');
-    el.className = 'toast toast-' + type;
-    el.textContent = msg;
-    container.appendChild(el);
-    setTimeout(() => { el.style.opacity = '0'; el.style.transform = 'translateX(20px)'; el.style.transition = '0.3s ease'; setTimeout(() => el.remove(), 320); }, 3500);
-  }
+    /* ══ PASSWORD CHECKER ═══════════════════════════════ */
+    function setupPasswordChecker() {
+        const inp=$('pwInput'), eye=$('pwEye'), checkBtn=$('pwCheckBtn'), hibpBtn=$('pwHIBPBtn');
+        if (eye) eye.addEventListener('click', ()=>{
+            if (!inp) return; inp.type=inp.type==='password'?'text':'password';
+            const ic=eye.querySelector('i')||eye.querySelector('svg'); if (ic) { ic.setAttribute('data-lucide',inp.type==='password'?'eye':'eye-off'); if(window.lucide)lucide.createIcons(); }
+        });
+        if (inp) inp.addEventListener('input', e=>{
+            const val=e.target.value, fill=$('pwStrengthFill'), label=$('pwStrengthLabel');
+            if (!fill) return;
+            if (!val) { fill.style.display='none'; if(label)label.style.display='none'; return; }
+            fill.style.display='block'; if(label)label.style.display='block';
+            let s=0; if(val.length>8)s+=25; if(/[A-Z]/.test(val))s+=25; if(/[0-9]/.test(val))s+=25; if(/[^A-Za-z0-9]/.test(val))s+=25;
+            const pf=fill.querySelector('.progress-fill');
+            if (pf) { pf.style.width=s+'%'; pf.style.background=s<=25?'#ff5f57':s<=50?'#febc2e':s<=75?'#00d4ff':'#00b86e'; }
+            if (label) label.textContent=s<=25?'Strength: Weak':s<=50?'Strength: Medium':s<=75?'Strength: Good':'Strength: Ultra';
+        });
+        if (checkBtn) checkBtn.addEventListener('click', async ()=>{
+            const pw=inp?.value?.trim(); if (!pw) { toast('Enter a password first.','error'); return; }
+            checkBtn.disabled=true; checkBtn.textContent='Checking...';
+            try {
+                const res=await fetch('/api/check-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw}),credentials:'include'});
+                const data=await res.json().catch(()=>({}));
+                if (!res.ok) throw new Error(data.error||'Check failed');
+                renderPwCheckResult(data);
+            } catch(err) { toast(err.message||'Password check failed.','error'); }
+            finally { checkBtn.disabled=false; checkBtn.textContent='Check'; }
+        });
+        if (hibpBtn) hibpBtn.addEventListener('click', async ()=>{
+            const pw=inp?.value?.trim(); if (!pw) { toast('Enter a password first.','error'); return; }
+            hibpBtn.disabled=true;
+            const wrap=$('hibpResultWrap');
+            if (wrap) { wrap.style.display='block'; wrap.innerHTML='<div style="color:var(--text-muted);font-size:12px">Checking breach database...</div>'; }
+            const result=await window.HIBP.checkPassword(pw);
+            if (wrap) HIBP.renderResult(result,wrap);
+            hibpBtn.disabled=false;
+        });
+    }
 
-  /* ================================================================
-     UTILITIES
-  ================================================================ */
-  function fmtSize(bytes) {
-    if (bytes < 1024)          return bytes + ' B';
-    if (bytes < 1024 * 1024)   return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  }
+    function renderPwCheckResult(data) {
+        const wrap=$('pwResultWrap'); if (!wrap) return;
+        const risk=(data.risk_level||'').toLowerCase(), score=data.strength_score??'—';
+        const col=risk.includes('high')?'#ff5f57':risk.includes('medium')?'#febc2e':'#00b86e';
+        const tags=[{label:'Upper',ok:data.has_uppercase},{label:'Lower',ok:data.has_lowercase},{label:'Num',ok:data.has_numbers},{label:'Sym',ok:data.has_special}];
+        wrap.innerHTML=`<div class="pw-check-result"><div style="display:flex;align-items:center;gap:10px;margin-bottom:8px"><span class="status-pill" style="background:${col}22;color:${col}">${esc((data.risk_level||'Unknown').toUpperCase())}</span><span style="font-family:var(--font-mono);font-size:1.1rem;font-weight:700">${score}<span style="font-size:10px;color:var(--text-muted)">/100</span></span></div><div class="pw-check-tags">${tags.map(t=>`<span class="pw-tag ${t.ok?'pw-tag-pass':'pw-tag-fail'}">${esc(t.label)}</span>`).join('')}</div>${data.ai_recommendation?`<div style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.5">${esc(data.ai_recommendation)}</div>`:''}</div>`;
+    }
 
-  function esc(s) {
-    return String(s)
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
-      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
+    /* ══ RESET ══════════════════════════════════════════ */
+    function setupResetBtn() {
+        const btn=$('newAnalysisBtn'); if (btn) btn.addEventListener('click', resetDashboard);
+    }
+
+    function resetDashboard() {
+        S.results=null; clearFile();
+        ['resultsSection','simulationSection','scoreWrapper','resetAction'].forEach(id=>{const el=$(id);if(el)el.style.display='none';});
+        const inp=$('inputSection'); if (inp) inp.style.display='block';
+        ['resTotalPw','resUniquePw','resAvgLength','resHighRisk'].forEach(id=>setText(id,'0'));
+        ['pctHigh','pctMedium','pctLow'].forEach(id=>setText(id,'0%'));
+        const ring=$('scoreRingFill'); if (ring) ring.style.strokeDasharray='0 283';
+        const num=$('scoreNum'); if (num) num.textContent='0';
+        const pw=$('pwResultWrap'); if (pw) pw.innerHTML='';
+        const hibp=$('hibpResultWrap'); if (hibp) { hibp.innerHTML=''; hibp.style.display='none'; }
+        const ar=$('attackResults'); if (ar) ar.innerHTML='';
+        const ps=$('policySection'); if (ps) ps.remove();
+        Object.values(S.charts).forEach(c=>{try{c.destroy();}catch{}});
+        S.charts={};
+        if (window.lucide) lucide.createIcons();
+    }
+
+    /* ══ UTILITIES ══════════════════════════════════════ */
+    let _csrf=null;
+    async function getCsrf() {
+        if (_csrf) return _csrf;
+        try { const r=await fetch('/api/csrf-token'); const d=await r.json(); _csrf=d.csrf_token||null; } catch {}
+        return _csrf;
+    }
+
+    function toast(msg, type) {
+        const c=$('toastContainer'); if (!c) return;
+        const el=document.createElement('div'); el.className=`toast toast-${type||'info'}`; el.textContent=msg; c.appendChild(el);
+        setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateX(20px)'; setTimeout(()=>el.remove(),320); },3500);
+    }
+
+    function setText(id, val) { const el=$(id); if (el) el.textContent=val!=null?val:'—'; }
+    function pct(val, total) { if (!total) return 0; return Math.round((val/total)*100); }
+    function fmtSize(bytes) { if (bytes<1024) return bytes+' B'; if (bytes<1024*1024) return (bytes/1024).toFixed(1)+' KB'; return (bytes/1024/1024).toFixed(1)+' MB'; }
+    function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 })();

@@ -187,9 +187,30 @@ def register_page():
     return render_template('register.html')
 
 
+@app.route('/profile')
+@login_required
+def profile_page():
+    return render_template('profile.html')
+
+
 @app.route('/hibp-demo')
 def hibp_demo():
     return render_template('index.html')
+
+
+@app.route('/forgot-password')
+def forgot_password_page():
+    return render_template('forgot_password.html')
+
+
+@app.route('/check-email')
+def check_email_page():
+    return render_template('check_email.html')
+
+
+@app.route('/reset-password')
+def reset_password_page():
+    return render_template('reset_password.html')
 
 
 # ────────────────────────────────────────────────────────────────────────────
