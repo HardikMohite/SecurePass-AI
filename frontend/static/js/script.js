@@ -62,29 +62,52 @@
         if (!btn) return;
         btn.addEventListener('click', async () => {
             try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }); } catch {}
-            S.user = null; showGuestNav(); toast('Logged out.', 'info'); resetDashboard();
+            S.user = null; showGuestNav(); toast('Logged out.', 'info'); resetDashboard(); showPage('dashboard');
         });
     }
 
-    /* ══ SIDEBAR ════════════════════════════════════════ */
+    /* ══ SIDEBAR & PAGE ROUTER ══════════════════════════ */
+
+    // All known page IDs
+    const PAGES = ['dashboard', 'compliance', 'terminal', 'ai-policy', 'reports', 'settings'];
+
+    function showPage(name) {
+        // Hide all page sections
+        PAGES.forEach(p => {
+            const sec = $('page-' + p);
+            if (sec) {
+                sec.style.display = 'none';
+                sec.classList.remove('active-page');
+            }
+        });
+
+        // Show requested page
+        const target = $('page-' + name);
+        if (target) {
+            target.style.display = 'block';
+            target.classList.add('active-page');
+            // Re-trigger lucide for any icons inside new page
+            if (window.lucide) lucide.createIcons();
+        }
+
+        // Update active nav item
+        document.querySelectorAll('.sidebar-nav .nav-item, .sidebar-footer .nav-item').forEach(el => {
+            el.classList.toggle('active', el.getAttribute('data-page') === name);
+        });
+    }
+
     function setupSidebar() {
-        const dashBtn = $('dashboardBtn'), settBtn = $('settingsBtn');
-        const dashSec = $('dashboardSection'), settSec = $('settingsSection');
-        const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
-
-        if (dashBtn) dashBtn.addEventListener('click', () => {
-            if (settSec) settSec.style.display = 'none';
-            if (dashSec) dashSec.style.display = 'block';
-            navItems.forEach(i => i.classList.remove('active'));
-            dashBtn.classList.add('active');
+        // Wire every nav item that has a data-page attribute
+        document.querySelectorAll('[data-page]').forEach(el => {
+            el.addEventListener('click', e => {
+                e.preventDefault();
+                const page = el.getAttribute('data-page');
+                showPage(page);
+            });
         });
 
-        if (settBtn) settBtn.addEventListener('click', () => {
-            if (dashSec) dashSec.style.display = 'none';
-            if (settSec) settSec.style.display = 'block';
-            navItems.forEach(i => i.classList.remove('active'));
-            settBtn.classList.add('active');
-        });
+        // Expose globally so other modules can navigate programmatically
+        window.showPage = showPage;
     }
 
     /* ══ SETTINGS NAV ═══════════════════════════════════ */

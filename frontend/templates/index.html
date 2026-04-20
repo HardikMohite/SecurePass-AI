@@ -13,32 +13,42 @@
 <body class="dark-mode">
     <div class="grid-bg"></div>
     
-    <aside class="sidebar">
+    <aside class="sidebar" id="mainSidebar">
         <div class="sidebar-logo">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="logo-shield">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                 <path d="M12 2v20c5-1 8-5 8-10V5l-8-3z" fill="var(--accent)" stroke="none" />
             </svg>
+            <span class="sidebar-brand">SecurePass</span>
         </div>
         <nav class="sidebar-nav">
-            <a href="javascript:void(0)" id="dashboardBtn" class="nav-item active" title="Dashboard">
-                <i data-lucide="layout-dashboard"></i>
+            <a href="javascript:void(0)" id="navDashboard" class="nav-item active" data-page="dashboard" title="Dashboard">
+                <i data-lucide="layout-dashboard" class="nav-icon" style="width:26px;height:26px;"></i>
+                <span class="nav-label">Dashboard</span>
             </a>
-            <a href="#" class="nav-item" title="Security Audit">
-                <i data-lucide="shield-check"></i>
+            <a href="javascript:void(0)" id="navCompliance" class="nav-item" data-page="compliance" title="Compliance">
+                <i data-lucide="shield-check" class="nav-icon" style="width:26px;height:26px;"></i>
+                <span class="nav-label">Compliance</span>
             </a>
-            <a href="#" class="nav-item" title="Attack Sim">
-                <i data-lucide="terminal"></i>
+            <a href="javascript:void(0)" id="navTerminal" class="nav-item" data-page="terminal" title="Terminal">
+                <i data-lucide="terminal" class="nav-icon" style="width:26px;height:26px;"></i>
+                <span class="nav-label">Terminal</span>
             </a>
-            <a href="#" class="nav-item" title="Reports">
-                <i data-lucide="file-text"></i>
+            <a href="javascript:void(0)" id="navAIPolicy" class="nav-item" data-page="ai-policy" title="AI Policy">
+                <i data-lucide="sparkles" class="nav-icon" style="width:26px;height:26px;"></i>
+                <span class="nav-label">AI Policy</span>
             </a>
-            <div class="sidebar-footer">
-                <a href="javascript:void(0)" id="settingsBtn" class="nav-item" title="Settings">
-                    <i data-lucide="settings"></i>
-                </a>
-            </div>
+            <a href="javascript:void(0)" id="navReports" class="nav-item" data-page="reports" title="Reports">
+                <i data-lucide="file-text" class="nav-icon" style="width:26px;height:26px;"></i>
+                <span class="nav-label">Reports</span>
+            </a>
         </nav>
+        <div class="sidebar-footer">
+            <a href="javascript:void(0)" id="settingsBtn" class="nav-item" data-page="settings" title="Settings">
+                <i data-lucide="settings" class="nav-icon" style="width:26px;height:26px;"></i>
+                <span class="nav-label">Settings</span>
+            </a>
+        </div>
     </aside>
 
     <div class="main-wrapper">
@@ -78,6 +88,9 @@
         </nav>
 
         <main class="content-area">
+
+        <!-- ═══ PAGE: DASHBOARD ═══════════════════════════════════════ -->
+        <section id="page-dashboard" class="page-section active-page">
         <div id="dashboardSection">
             <!-- Hero Header -->
             <div class="hero-header">
@@ -352,8 +365,66 @@
             </button>
         </div>
         </div>
+        </section><!-- end #page-dashboard -->
 
-        <div id="settingsSection" style="display: none;">
+        <!-- ═══ PAGE: COMPLIANCE ═══════════════════════════════════════ -->
+        <section id="page-compliance" class="page-section" style="display:none;">
+            <div class="page-hero">
+                <h1>Compliance <span>Status</span></h1>
+                <p class="page-subtitle">Run an analysis first to see your compliance posture against industry standards.</p>
+            </div>
+            <div id="compliancePageContent">
+                <div class="empty-state">
+                    <i data-lucide="shield-off" style="width:48px;height:48px;color:var(--text-muted);margin-bottom:1rem;"></i>
+                    <p>No analysis data yet. Upload a password file from the Dashboard.</p>
+                </div>
+            </div>
+        </section><!-- end #page-compliance -->
+
+        <!-- ═══ PAGE: TERMINAL ═══════════════════════════════════════ -->
+        <section id="page-terminal" class="page-section" style="display:none;">
+            <div class="page-hero">
+                <h1>Attack <span>Terminal</span></h1>
+                <p class="page-subtitle">Simulated attack environment — run an analysis first to load target data.</p>
+            </div>
+            <div id="terminalPageContent">
+                <div class="empty-state">
+                    <i data-lucide="terminal" style="width:48px;height:48px;color:var(--text-muted);margin-bottom:1rem;"></i>
+                    <p>No dataset loaded. Return to Dashboard and run an analysis.</p>
+                </div>
+            </div>
+        </section><!-- end #page-terminal -->
+
+        <!-- ═══ PAGE: AI POLICY ═══════════════════════════════════════ -->
+        <section id="page-ai-policy" class="page-section" style="display:none;">
+            <div class="page-hero">
+                <h1>AI <span>Policy</span></h1>
+                <p class="page-subtitle">Generate and apply intelligent password policies tailored to your organisation.</p>
+            </div>
+            <div id="aiPolicyPageContent">
+                <div class="empty-state">
+                    <i data-lucide="sparkles" style="width:48px;height:48px;color:var(--text-muted);margin-bottom:1rem;"></i>
+                    <p>No analysis data yet. Upload a password file from the Dashboard.</p>
+                </div>
+            </div>
+        </section><!-- end #page-ai-policy -->
+
+        <!-- ═══ PAGE: REPORTS ═══════════════════════════════════════ -->
+        <section id="page-reports" class="page-section" style="display:none;">
+            <div class="page-hero">
+                <h1>Security <span>Reports</span></h1>
+                <p class="page-subtitle">Download and review your past audit reports.</p>
+            </div>
+            <div id="reportsPageContent">
+                <div class="empty-state">
+                    <i data-lucide="file-text" style="width:48px;height:48px;color:var(--text-muted);margin-bottom:1rem;"></i>
+                    <p>No reports yet. Complete an analysis to generate your first report.</p>
+                </div>
+            </div>
+        </section><!-- end #page-reports -->
+
+        <!-- ═══ PAGE: SETTINGS ═══════════════════════════════════════ -->
+        <section id="page-settings" class="page-section" style="display:none;">
             <div class="settings-layout">
                 <aside class="settings-nav">
                     <div class="settings-nav-item active" data-section="profile">Profile</div>
@@ -1347,7 +1418,9 @@
             </div>
         </div>
     </main>
-    </div>
+    </div><!-- end .main-wrapper -->
+
+    </section><!-- end #page-settings -->
 
     <div id="aiDrawerOverlay" class="drawer-overlay"></div>
     <div id="aiDrawer" class="drawer">
