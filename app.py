@@ -37,7 +37,7 @@ from auth import auth_bp
 from backend.ai_engine import generate_insights, generate_password_examples
 from backend.compliance_mapper import map_to_standards
 from backend.dataset_analyzer import analyze_dataset
-from backend.hibp_checker import HIBPChecker, calculate_breach_statistics
+from backend.hibp_engine import check_bulk_passwords
 from backend.hibp_routes import hibp_bp
 from backend.pattern_detector import detect_patterns
 from backend.policy_simulator import simulate_policy_impact
@@ -91,7 +91,8 @@ def create_app(config_class=None):
     # ── User loader ──────────────────────────────────────────────────── #
     @login_manager.user_loader
     def load_user(user_id):
-        return User.query.get(int(user_id))
+        # FIX: Use modern `db.session.get()` to avoid SQLAlchemy deprecation warnings
+        return db.session.get(User, int(user_id))
 
     @login_manager.unauthorized_handler
     def unauthorized():
@@ -288,7 +289,16 @@ def analyze():
         breach_stats = None
         breach_val = request.form.get('enable_breach_check', 'true').strip().lower()
         if breach_val not in ('false', '0', 'no', 'off'):
-            breach_stats = _run_hibp_check(passwords)
+            # New: Use the high-performance HIBP engine
+            app.logger.info('Starting HIBP check for %d passwords.', len(passwords))
+            breach_stats = check_bulk_passwords(passwords, app.logger)
+            app.logger.info(
+                'HIBP check complete — %d/%d breached (sampled=%s, n=%d)',
+                breach_stats.get('total_breached', 0),
+                breach_stats.get('total_checked', 0),
+                breach_stats.get('sampled', False),
+                breach_stats.get('sample_size', 0),
+            )
 
         risk_data     = calculate_risk_score(dataset_stats, patterns, breach_stats)
         policy_impact = simulate_policy_impact(risk_data.get('score', 0), patterns, dataset_stats)
@@ -496,43 +506,6 @@ def download_report():
 # ────────────────────────────────────────────────────────────────────────────
 #  Private helpers
 # ────────────────────────────────────────────────────────────────────────────
-
-def _run_hibp_check(passwords):
-    """Sample up to 100 passwords and check against HIBP. Scales results to full dataset."""
-    try:
-        import random
-        total       = len(passwords)
-        sample_size = min(total, 100)
-        sample      = random.sample(passwords, sample_size)
-
-        checker = HIBPChecker()
-        results = checker.check_password_batch(sample)
-        stats   = calculate_breach_statistics(results)
-
-        # Scale sampled counts back to represent the full dataset
-        if sample_size < total and sample_size > 0:
-            scale = total / sample_size
-            stats['total_checked']  = total
-            stats['total_breached'] = round(stats.get('total_breached', 0) * scale)
-            # breach_rate (%) stays the same — it's already a percentage
-            stats['sampled']        = True
-            stats['sample_size']    = sample_size
-        else:
-            stats['sampled']     = False
-            stats['sample_size'] = sample_size
-
-        app.logger.info(
-            'HIBP check — %d/%d breached (sampled=%s, n=%d)',
-            stats['total_breached'],
-            stats['total_checked'],
-            stats['sampled'],
-            stats['sample_size'],
-        )
-        return stats
-    except Exception as exc:
-        app.logger.warning('HIBP check failed: %s', exc)
-        return None
-
 
 def _parse_passwords(content: str) -> list:
     """
