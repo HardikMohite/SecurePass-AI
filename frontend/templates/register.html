@@ -33,13 +33,24 @@
                 <h2>Create account</h2>
                 <p>Start securing your organisation's passwords.</p>
 
-                <form id="registerForm">
+                <form id="registerForm" novalidate>
                     <div id="errMsg" style="display: none; padding: 0.75rem; background: rgba(255, 95, 87, 0.1); color: #ff5f57; border-radius: 4px; font-size: 0.85rem; margin-bottom: 1.5rem;"></div>
+                    <div id="successMsg" style="display: none; padding: 0.75rem; background: rgba(40, 200, 64, 0.1); color: #28c840; border-radius: 4px; font-size: 0.85rem; margin-bottom: 1.5rem;"></div>
+
+                    <!-- FIX: username field was referenced in register.js but missing from HTML -->
+                    <div class="form-group">
+                        <label for="username">Username <span style="color: var(--text-muted); font-size: 0.8rem;">(optional)</span></label>
+                        <div class="input-wrapper">
+                            <i data-lucide="user"></i>
+                            <input type="text" id="username" class="auth-input" placeholder="Display name">
+                        </div>
+                    </div>
 
                     <div class="form-group">
                         <label for="email">Email address</label>
                         <div class="input-wrapper">
-                            <input type="email" id="email" class="auth-input" placeholder="name@company.com" required>
+                            <i data-lucide="mail"></i>
+                            <input type="email" id="email" class="auth-input" placeholder="name@company.com" required autocomplete="email">
                         </div>
                     </div>
 
@@ -47,8 +58,8 @@
                         <label for="password">Password</label>
                         <div class="input-wrapper">
                             <i data-lucide="lock"></i>
-                            <input type="password" id="password" class="auth-input" placeholder="••••••••" required>
-                            <button type="button" id="pwEye" class="password-eye">
+                            <input type="password" id="password" class="auth-input" placeholder="••••••••" required autocomplete="new-password">
+                            <button type="button" id="pwEye" class="password-eye" aria-label="Toggle password visibility">
                                 <i data-lucide="eye"></i>
                             </button>
                         </div>
@@ -60,7 +71,8 @@
                             <div id="seg2" class="strength-segment"></div>
                             <div id="seg3" class="strength-segment"></div>
                         </div>
-                        <div id="strengthLabel" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.5rem; text-align: right;">Strength: None</div>
+                        <!-- FIX: label text now matches what register.js sets ("Token Strength: None") -->
+                        <div id="strengthLabel" style="font-size: 0.7rem; color: var(--text-muted); margin-top: 0.5rem; text-align: right;">Token Strength: None</div>
 
                         <ul class="requirement-list">
                             <li id="req-len"><i data-lucide="circle"></i> 8+ characters</li>
@@ -76,8 +88,8 @@
                         <label for="confirm">Confirm password</label>
                         <div class="input-wrapper">
                             <i data-lucide="shield"></i>
-                            <input type="password" id="confirm" class="auth-input" placeholder="••••••••" required>
-                            <button type="button" id="confEye" class="password-eye">
+                            <input type="password" id="confirm" class="auth-input" placeholder="••••••••" required autocomplete="new-password">
+                            <button type="button" id="confEye" class="password-eye" aria-label="Toggle confirm password visibility">
                                 <i data-lucide="eye"></i>
                             </button>
                         </div>
@@ -97,6 +109,8 @@
     </div>
 
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- FIX: auth.js MUST load before register.js — it defines window.Auth which register.js depends on -->
+    <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
     <script src="{{ url_for('static', filename='js/register.js') }}"></script>
     <script>
         lucide.createIcons();

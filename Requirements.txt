@@ -20,14 +20,14 @@ groq==0.9.0                # Groq API client (ai_engine.py)
 
 # ── HTTP / Networking ─────────────────────────────────────────────
 requests==2.32.3           # HIBP API calls (hibp_checker.py)
-urllib3==2.2.3             # Transitive dep of requests — pin for security
+urllib3==1.26.20             # Transitive dep of requests — pin for security
 
 # ── PDF Report Generation ─────────────────────────────────────────
 reportlab==4.2.2           # PDF generation (pdf_gen.py)
 
 # ── Chart / Visualisation ─────────────────────────────────────────
 matplotlib==3.9.2          # Chart generation (charts.py)
-numpy==1.26.4              # Used by matplotlib gauge chart
+numpy==2.4.4              # Used by matplotlib gauge chart
 
 # ── Email validation ──────────────────────────────────────────────
 email-validator==2.2.0     # auth.py registration validation

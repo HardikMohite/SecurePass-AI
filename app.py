@@ -200,12 +200,14 @@ def hibp_demo():
 
 @app.route('/forgot-password')
 def forgot_password_page():
-    return render_template('forgot_password.html')
+    # FIX: actual template filename is forgot_pass.html
+    return render_template('forgot_pass.html')
 
 
 @app.route('/check-email')
 def check_email_page():
-    return render_template('check_email.html')
+    # FIX: actual template filename is check_mail.html, not check_email.html
+    return render_template('check_mail.html')
 
 
 @app.route('/reset-password')

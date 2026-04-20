@@ -35,3 +35,5 @@ logs/
 *.log
 
 test_patterns.py
+test_attack_simulator.py
+*.zip
