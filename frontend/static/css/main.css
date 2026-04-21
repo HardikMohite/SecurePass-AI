@@ -495,8 +495,9 @@ main {
 }
 
 .charts-grid canvas {
-    min-height: 280px !important;
+    display: block;
     width: 100% !important;
+    max-height: 300px;
 }
 
 .charts-grid .card {
@@ -506,16 +507,14 @@ main {
     padding: 20px !important;
 }
 
-/* Radar Chart specifics */
+/* Radar Chart — controlled by wrapper */
 #chartStrength {
-    min-height: 320px !important;
-    max-width: 400px;
-    margin: 0 auto;
+    display: block;
 }
 
-/* Composition Chart specifics */
+/* Composition Chart — controlled by wrapper */
 #chartPattern {
-    min-height: 260px !important;
+    display: block;
 }
 
 .left-col, .mid-col, .right-col {
@@ -2833,4 +2832,441 @@ svg.score-ring {
     border-color: var(--accent);
     color: var(--accent);
     background: rgba(var(--accent-rgb), 0.08);
+}
+/* ═══════════════════════════════════════════════════════════════════════
+   FEATURE 2 — Dashboard Redesign (Less Compact)
+   ─────────────────────────────────────────────────────────────────────── */
+
+/* ── Dashboard Header ──────────────────────────────────────────────────── */
+.dash-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+}
+
+.dash-title {
+    font-family: var(--font-heading);
+    font-size: 2.25rem;
+    letter-spacing: -0.03em;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.dash-title span { color: var(--accent); }
+
+[data-theme="dark"] .dash-title span {
+    text-shadow: 0 0 40px rgba(0, 212, 255, 0.4);
+}
+
+.dash-subtitle {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    margin-top: 6px;
+}
+
+.dash-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+/* Download Report CTA */
+.btn-report {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 22px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 8px;
+    font-family: var(--font-heading);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 4px 20px -4px rgba(var(--accent-rgb), 0.45);
+}
+
+.btn-report:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+    box-shadow: 0 8px 28px -6px rgba(var(--accent-rgb), 0.55);
+}
+
+/* ── Row 1: Hero Row ───────────────────────────────────────────────────── */
+.dash-hero-row {
+    display: grid;
+    grid-template-columns: 220px 1fr 360px;
+    gap: 24px;
+    margin-bottom: 28px;
+    align-items: start;
+}
+
+/* Risk Score card in hero row */
+.dash-score-card {
+    padding: 28px 24px !important;
+}
+
+.dash-score-card .score-ring-container {
+    margin-top: 8px;
+}
+
+/* Metrics block: 2×3 grid */
+.dash-metrics-block {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+    align-content: start;
+}
+
+.dash-metrics-block .metric-card {
+    padding: 20px 22px;
+}
+
+.dash-metrics-block .metric-value {
+    font-size: 1.75rem;
+    margin-top: 6px;
+}
+
+/* Input stack: upload + single check */
+.dash-input-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.dash-input-stack .card {
+    padding: 24px !important;
+}
+
+
+/* ── Row 2: Charts section ─────────────────────────────────────────────── */
+.dash-charts-section {
+    margin-bottom: 3rem;
+}
+
+.dash-charts-header {
+    margin-bottom: 18px;
+}
+
+.dash-section-title {
+    font-family: var(--font-heading);
+    font-size: 1rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+}
+
+/* 2×2 charts grid — bigger, equal cards */
+.dash-charts-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+}
+
+/* ── Chart card: locked height, glassy dark surface ─── */
+.dash-chart-card {
+    padding: 24px 24px 20px !important;
+    display: flex;
+    flex-direction: column;
+    /* Stable bounded box — prevents Chart.js resize loop */
+    height: 400px;
+    min-height: 400px;
+    max-height: 400px;
+    overflow: hidden;
+    /* Visual upgrades */
+    border-top: 2px solid transparent !important;
+    background: var(--surface) !important;
+    border-radius: 14px !important;
+    transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease !important;
+    position: relative;
+}
+
+/* Animated glowing top border via pseudo-element */
+.dash-chart-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 14px;
+    padding: 2px 0 0;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--accent-secondary) 100%);
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    clip-path: inset(0 0 calc(100% - 2px) 0);
+    opacity: 0.7;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.dash-chart-card:hover {
+    transform: translateY(-3px) !important;
+    box-shadow: 0 16px 48px -12px rgba(var(--accent-rgb), 0.25), 0 0 0 1px rgba(var(--accent-rgb), 0.12) !important;
+}
+
+.dash-chart-card:hover::before {
+    opacity: 1;
+}
+
+[data-theme="dark"] .dash-chart-card {
+    background: linear-gradient(145deg, #10141d 0%, #0e1219 100%) !important;
+}
+
+/* ── Chart label with accent dot ─────────────────────── */
+.dash-chart-label {
+    font-family: var(--font-heading);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-muted);
+    font-weight: 700;
+    margin-bottom: 16px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.dash-chart-label::before {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent);
+    flex-shrink: 0;
+}
+
+/* Stable canvas wrapper — Chart.js reads THIS height */
+.dash-chart-card .chart-canvas-wrap {
+    position: relative;
+    flex: 1;
+    min-height: 0;   /* lets flex child shrink below its content-size */
+    overflow: hidden;
+}
+
+.dash-chart-card canvas {
+    display: block;
+}
+
+/* override old span-2 rule for charts — all equal */
+#chartsGrid.dash-charts-grid > div:last-child {
+    grid-column: span 1;
+}
+
+/* ── Responsive ────────────────────────────────────────────────────────── */
+@media (max-width: 1200px) {
+    .dash-hero-row {
+        grid-template-columns: 200px 1fr;
+    }
+    .dash-input-stack {
+        grid-column: span 2;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 900px) {
+    .dash-hero-row {
+        grid-template-columns: 1fr;
+    }
+    .dash-metrics-block {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .dash-charts-grid {
+        grid-template-columns: 1fr;
+    }
+    .dash-input-stack {
+        grid-template-columns: 1fr;
+    }
+    .dash-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PANEL PAGES — shared header, empty states, content
+   ─────────────────────────────────────────────────────────────────────── */
+
+.panel-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+}
+
+.panel-title {
+    font-family: var(--font-heading);
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+}
+
+.panel-title span { color: var(--accent); }
+
+[data-theme="dark"] .panel-title span {
+    text-shadow: 0 0 40px rgba(0, 212, 255, 0.4);
+}
+
+.panel-subtitle {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin-top: 6px;
+}
+
+.panel-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 5rem 2rem;
+    text-align: center;
+    border: 1px dashed var(--border-2);
+    border-radius: 14px;
+    gap: 10px;
+}
+
+.panel-empty-state i,
+.panel-empty-state svg {
+    width: 48px;
+    height: 48px;
+    color: var(--text-muted);
+    opacity: 0.5;
+}
+
+.panel-empty-state p {
+    font-family: var(--font-heading);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.panel-empty-state span {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    max-width: 380px;
+    line-height: 1.5;
+}
+
+/* ── Compliance Panel ──────────────────────────────────────────────────── */
+
+.compliance-panel-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+}
+
+.compliance-panel-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 3px solid var(--accent);
+    border-radius: 12px;
+    padding: 24px;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.compliance-panel-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px -8px rgba(var(--accent-rgb), 0.15);
+}
+
+.compliance-panel-card-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.compliance-panel-card-name {
+    font-family: var(--font-heading);
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.compliance-panel-card-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+/* ── Policy Impact Panel ───────────────────────────────────────────────── */
+
+.policy-impact-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 4px;
+}
+
+.policy-impact-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+}
+
+.policy-impact-row:last-child { border-bottom: none; }
+
+.policy-impact-label { color: var(--text-muted); }
+
+/* ── Breach Analysis Redesign ──────────────────────────────────────────── */
+
+.dash-breach-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 3px solid #febc2e;
+    border-radius: 12px;
+    padding: 28px;
+    margin-bottom: 28px;
+    transition: box-shadow 0.2s ease;
+}
+
+.dash-breach-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.dash-breach-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-heading);
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.dash-breach-badges {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* #breachContainer is the HIBP injection point — must NOT have its own grid */
+.dash-breach-grid {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
 }

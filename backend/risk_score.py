@@ -142,20 +142,29 @@ def _calculate_invalid_penalty(dataset_stats: Dict[str, Any]) -> float:
 
 
 def _calculate_breach_penalty(breach_stats: Dict[str, Any]) -> float:
-    """Penalty based on HIBP breach statistics (0–30 pts)."""
-    if not breach_stats:
+    """Penalty based on HIBP breach statistics (0–30 pts).
+
+    Reads keys as output by hibp_transformer.py:
+      - checked_passwords  (transformer key, was: total_checked)
+      - breach_rate        (transformer key, was: breach_percentage)
+      - severity           (transformer key, was: severity_distribution) with lowercase keys
+    """
+    if not breach_stats or breach_stats.get("status") != "ok":
         return 0.0
 
-    total_checked = breach_stats.get('total_checked', 0)
+    # checked_passwords is the correct key from hibp_transformer
+    total_checked = breach_stats.get("checked_passwords", 0)
     if total_checked == 0:
         return 0.0
 
-    breach_pct = breach_stats.get('breach_percentage', 0.0)
+    # breach_rate is already a 0-100 percentage from hibp_transformer
+    breach_pct = breach_stats.get("breach_rate", 0.0)
     base_penalty = (breach_pct / 100.0) * 20.0
 
-    severity = breach_stats.get('severity_distribution', {})
-    crit_ratio = severity.get('Critical', 0) / total_checked
-    high_ratio = severity.get('High', 0) / total_checked
+    # severity has lowercase keys: critical, high, medium, low
+    severity = breach_stats.get("severity", {})
+    crit_ratio = severity.get("critical", 0) / total_checked
+    high_ratio = severity.get("high", 0) / total_checked
     severity_penalty = (crit_ratio * 10.0) + (high_ratio * 5.0)
 
     return min(base_penalty + severity_penalty, 30.0)
@@ -239,9 +248,9 @@ def _generate_explanation(
     }
     explanation = level_text.get(risk_level, 'Risk level unknown.')
 
-    if breach_stats:
-        bp  = breach_stats.get('breach_percentage', 0.0)
-        cnt = breach_stats.get('total_breached', 0)
+    if breach_stats and breach_stats.get('status') == 'ok':
+        bp  = breach_stats.get('breach_rate', 0.0)       # transformer key
+        cnt = breach_stats.get('estimated_breached', 0)  # transformer key
         if bp > 50:
             explanation += f' CRITICAL: {bp:.1f}% of sampled passwords ({cnt}) found in known data breaches.'
         elif bp > 25:

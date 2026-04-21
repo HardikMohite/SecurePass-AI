@@ -92,98 +92,66 @@
         <!-- ═══ PAGE: DASHBOARD ═══════════════════════════════════════ -->
         <section id="page-dashboard" class="page-section active-page">
         <div id="dashboardSection">
-            <!-- Hero Header -->
-            <div class="hero-header">
-            <h1>Security <span>Analysis</span> Dashboard</h1>
-            <div class="stats-row">
-                <div class="metric-card">
-                    <div class="metric-label">Total Passwords</div>
-                    <div id="resTotalPw" class="metric-value">0</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-label">Unique Entities</div>
-                    <div id="resUniquePw" class="metric-value">0</div>
-                </div>
-                <div class="metric-card">
-                    <div class="metric-label">Avg. Length</div>
-                    <div id="resAvgLength" class="metric-value" style="color: var(--accent-secondary);">0</div>
-                </div>
-                <div class="metric-card danger">
-                    <div class="metric-label">High Risk</div>
-                    <div id="resHighRisk" class="metric-value" style="color: #ff5f57;">0</div>
-                </div>
-            </div>
-        </div>
 
-        <div id="loadingSection" class="card terminal-card" style="display: none; margin-bottom: 2rem;">
-            <div class="terminal-header">
-                <div class="dot dot-red"></div>
-                <div class="dot dot-yellow"></div>
-                <div class="dot dot-green"></div>
-                <span style="font-size: 11px; color: var(--text-muted); margin-left: 8px;">Analysis Engine v4.0</span>
-            </div>
-            <div class="terminal-body" style="height: auto; min-height: 250px;">
-                <div id="step-parse" class="step">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <i data-lucide="circle"></i>
-                        <span>Parsing dataset structure...</span>
-                    </div>
-                    <div class="step-progress-wrapper">
-                        <div class="step-progress-bar"></div>
-                    </div>
+            <!-- ── DASHBOARD HEADER ─────────────────────────────────────── -->
+            <div class="dash-header">
+                <div class="dash-header-left">
+                    <h1 class="dash-title">Security <span>Analysis</span> Dashboard</h1>
+                    <p class="dash-subtitle">Upload a password dataset to run a full AI-powered audit</p>
                 </div>
-                <div id="step-detect" class="step">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <i data-lucide="circle"></i>
-                        <span>Detecting complexity patterns...</span>
-                    </div>
-                    <div class="step-progress-wrapper">
-                        <div class="step-progress-bar"></div>
-                    </div>
-                </div>
-                <div id="step-risk" class="step">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <i data-lucide="circle"></i>
-                        <span>Calculating risk distribution...</span>
-                    </div>
-                    <div class="step-progress-wrapper">
-                        <div class="step-progress-bar"></div>
-                    </div>
-                </div>
-                <div id="step-breach" class="step">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <i data-lucide="circle"></i>
-                        <span>Cross-referencing breach databases...</span>
-                    </div>
-                    <div class="step-progress-wrapper">
-                        <div class="step-progress-bar"></div>
-                    </div>
-                </div>
-                <div id="step-ai" class="step">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <i data-lucide="circle"></i>
-                        <span>Generating AI security insights...</span>
-                    </div>
-                    <div class="step-progress-wrapper">
-                        <div class="step-progress-bar"></div>
-                    </div>
-                </div>
-                <div id="step-report" class="step">
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <i data-lucide="circle"></i>
-                        <span>Finalizing executive report...</span>
-                    </div>
-                    <div class="step-progress-wrapper">
-                        <div class="step-progress-bar"></div>
-                    </div>
+                <div class="dash-header-actions">
+                    <button id="downloadBtn" class="btn btn-report" style="display: none;">
+                        <i data-lucide="download" style="width: 16px; height: 16px;"></i>
+                        Download Report
+                    </button>
+                    <button id="newAnalysisBtn" class="btn btn-ghost" style="display: none;">
+                        <i data-lucide="rotate-ccw" style="width: 15px; height: 15px;"></i>
+                        Reset
+                    </button>
                 </div>
             </div>
-        </div>
 
-        <div class="dashboard-grid">
-            <!-- Left Column: Input & Risk Score -->
-            <div class="left-col reveal">
-                <div id="scoreWrapper" class="card" style="display: none;">
+            <!-- ── LOADING TERMINAL ──────────────────────────────────────── -->
+            <div id="loadingSection" class="card terminal-card" style="display: none; margin-bottom: 2rem;">
+                <div class="terminal-header">
+                    <div class="dot dot-red"></div>
+                    <div class="dot dot-yellow"></div>
+                    <div class="dot dot-green"></div>
+                    <span style="font-size: 11px; color: var(--text-muted); margin-left: 8px;">Analysis Engine v4.0</span>
+                </div>
+                <div class="terminal-body" style="height: auto; min-height: 250px;">
+                    <div id="step-parse" class="step">
+                        <div style="display: flex; align-items: center; gap: 12px;"><i data-lucide="circle"></i><span>Parsing dataset structure...</span></div>
+                        <div class="step-progress-wrapper"><div class="step-progress-bar"></div></div>
+                    </div>
+                    <div id="step-detect" class="step">
+                        <div style="display: flex; align-items: center; gap: 12px;"><i data-lucide="circle"></i><span>Detecting complexity patterns...</span></div>
+                        <div class="step-progress-wrapper"><div class="step-progress-bar"></div></div>
+                    </div>
+                    <div id="step-risk" class="step">
+                        <div style="display: flex; align-items: center; gap: 12px;"><i data-lucide="circle"></i><span>Calculating risk distribution...</span></div>
+                        <div class="step-progress-wrapper"><div class="step-progress-bar"></div></div>
+                    </div>
+                    <div id="step-breach" class="step">
+                        <div style="display: flex; align-items: center; gap: 12px;"><i data-lucide="circle"></i><span>Cross-referencing breach databases...</span></div>
+                        <div class="step-progress-wrapper"><div class="step-progress-bar"></div></div>
+                    </div>
+                    <div id="step-ai" class="step">
+                        <div style="display: flex; align-items: center; gap: 12px;"><i data-lucide="circle"></i><span>Generating AI security insights...</span></div>
+                        <div class="step-progress-wrapper"><div class="step-progress-bar"></div></div>
+                    </div>
+                    <div id="step-report" class="step">
+                        <div style="display: flex; align-items: center; gap: 12px;"><i data-lucide="circle"></i><span>Finalizing executive report...</span></div>
+                        <div class="step-progress-wrapper"><div class="step-progress-bar"></div></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── ROW 1: HERO — score + metrics + inputs ─────────────────── -->
+            <div class="dash-hero-row">
+
+                <!-- Risk Score Ring -->
+                <div class="card dash-score-card">
                     <div class="card-header">
                         <i data-lucide="activity"></i>
                         <span>Risk Score</span>
@@ -191,234 +159,238 @@
                     </div>
                     <div class="score-ring-container">
                         <svg class="score-ring" viewBox="0 0 100 100">
-                            <circle class="score-bg" cx="50" cy="50" r="45" style="fill: none; stroke: var(--border); stroke-width: 8;"></circle>
-                            <circle id="scoreRingFill" class="score-fill" cx="50" cy="50" r="45" style="fill: none; stroke: var(--accent); stroke-width: 8; stroke-dasharray: 0 283;"></circle>
+                            <circle cx="50" cy="50" r="45" style="fill:none;stroke:var(--border);stroke-width:8;"></circle>
+                            <circle id="scoreRingFill" cx="50" cy="50" r="45" style="fill:none;stroke:var(--accent);stroke-width:8;stroke-dasharray:0 283;"></circle>
                         </svg>
                         <div class="score-label">
-                            <span id="scoreNum" class="num">0</span>
-                            <span class="txt">SECURE</span>
+                            <span id="scoreNum" class="num">—</span>
+                            <span class="txt">SCORE</span>
                         </div>
                     </div>
                 </div>
 
-                <div id="inputSection" class="card">
-                    <div class="card-header">
-                        <i data-lucide="upload-cloud"></i>
-                        <span>Upload Data</span>
+                <!-- Stat metrics — 4 KPI cards + distribution pills -->
+                <div class="dash-metrics-block">
+                    <div class="metric-card">
+                        <div class="metric-label">Total Passwords</div>
+                        <div id="resTotalPw" class="metric-value">—</div>
                     </div>
-                    <div id="uploadZone" class="upload-zone">
-                        <i data-lucide="file-up" style="width: 32px; height: 32px; margin-bottom: 12px;"></i>
-                        <p style="font-size: 14px;">Drop .csv or .xlsx here</p>
-                        <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Max file size: 25MB</p>
-                        <input type="file" id="fileInput" hidden accept=".csv,.txt">
+                    <div class="metric-card">
+                        <div class="metric-label">Unique Entities</div>
+                        <div id="resUniquePw" class="metric-value">—</div>
                     </div>
-                    <div id="fileInfo" style="display: none; margin-top: 1rem;">
-                        <div style="display: flex; align-items: center; justify-content: space-between;">
-                            <span id="fileName" class="text-muted" style="font-size: 0.8rem; font-family: var(--font-mono);">filename.csv</span>
-                            <button id="removeFileBtn" class="btn" style="padding: 4px; border: none;">
-                                <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+                    <div class="metric-card">
+                        <div class="metric-label">Avg. Length</div>
+                        <div id="resAvgLength" class="metric-value" style="color: var(--accent-secondary);">—</div>
+                    </div>
+                    <div class="metric-card danger">
+                        <div class="metric-label">High Risk</div>
+                        <div id="resHighRisk" class="metric-value" style="color: #ff5f57;">—</div>
+                    </div>
+                    <div class="metric-card" style="grid-column: span 2;">
+                        <div class="metric-label">Risk Distribution</div>
+                        <div style="display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap;">
+                            <span id="pctHigh"   class="status-pill" style="background:rgba(255,95,87,0.1);color:#ff5f57;font-size:13px;padding:4px 12px;">0% High</span>
+                            <span id="pctMedium" class="status-pill" style="background:rgba(254,188,46,0.1);color:#febc2e;font-size:13px;padding:4px 12px;">0% Med</span>
+                            <span id="pctLow"    class="status-pill" style="background:rgba(0,184,110,0.1);color:#00b86e;font-size:13px;padding:4px 12px;">0% Low</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upload + Single Password Check -->
+                <div class="dash-input-stack">
+                    <div id="inputSection" class="card">
+                        <div class="card-header">
+                            <i data-lucide="upload-cloud"></i>
+                            <span>Upload Data</span>
+                        </div>
+                        <div id="uploadZone" class="upload-zone">
+                            <i data-lucide="file-up" style="width:32px;height:32px;margin-bottom:12px;"></i>
+                            <p style="font-size:14px;">Drop .csv or .txt here</p>
+                            <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">Max file size: 25MB</p>
+                            <input type="file" id="fileInput" hidden accept=".csv,.txt">
+                        </div>
+                        <div id="fileInfo" style="display:none;margin-top:1rem;">
+                            <div style="display:flex;align-items:center;justify-content:space-between;">
+                                <span id="fileName" class="text-muted" style="font-size:0.8rem;font-family:var(--font-mono);">filename.csv</span>
+                                <button id="removeFileBtn" class="btn" style="padding:4px;border:none;"><i data-lucide="x" style="width:14px;height:14px;"></i></button>
+                            </div>
+                        </div>
+                        <button id="analyzeBtn" class="btn btn-primary" style="margin-top:1.5rem;width:100%;">
+                            <i data-lucide="zap"></i> Run Analysis
+                        </button>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <i data-lucide="search"></i>
+                            <span>Single Password Check</span>
+                        </div>
+                        <div style="position:relative;margin-bottom:1rem;">
+                            <input type="password" id="pwInput" style="text-align:left;width:100%;" placeholder="Enter a password to test…">
+                            <button id="pwEye" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;">
+                                <i data-lucide="eye" style="width:16px;"></i>
                             </button>
                         </div>
-                    </div>
-                    <button id="analyzeBtn" class="btn btn-primary" style="margin-top: 1.5rem;">
-                        <i data-lucide="zap"></i>
-                        Run Analysis
-                    </button>
-                </div>
-
-                <div class="card">
-                    <div class="card-header">
-                        <i data-lucide="search"></i>
-                        <span>Single Check</span>
-                    </div>
-                    <div style="position: relative; margin-bottom: 1rem;">
-                        <input type="password" id="pwInput" style="text-align: left;" placeholder="Password string...">
-                        <button id="pwEye" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer;">
-                            <i data-lucide="eye" style="width: 16px;"></i>
-                        </button>
-                    </div>
-                    <div id="pwStrengthFill" class="progress-track" style="height: 4px; margin-bottom: 0.5rem; display: none;">
-                        <div class="progress-fill" style="width: 0%;"></div>
-                    </div>
-                    <div id="pwStrengthLabel" class="text-muted" style="font-size: 11px; margin-bottom: 1rem; display: none;">Strength: Poor</div>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-                        <button id="pwCheckBtn" class="btn btn-ghost">Check</button>
-                        <button id="pwHIBPBtn" class="btn btn-ghost">HIBP</button>
-                    </div>
-                    <div id="pwResultWrap" class="text-muted" style="margin-top: 1rem; font-size: 12px;"></div>
-                    <div id="hibpResultWrap" class="hibp-wrap" style="display: none;"></div>
-                </div>
-            </div>
-
-            <!-- Mid Column: Distribution & Compliance -->
-            <div id="resultsSection" class="mid-col reveal" style="display: none;">
-                <div class="card">
-                    <div class="card-header">
-                        <i data-lucide="bar-chart-3"></i>
-                        <span>Security Distribution</span>
-                        <div style="margin-left: auto; display: flex; gap: 0.5rem;">
-                            <span id="pctHigh" class="status-pill" style="background: rgba(255, 95, 87, 0.1); color: #ff5f57;">0%</span>
-                            <span id="pctMedium" class="status-pill" style="background: rgba(254, 188, 46, 0.1); color: #febc2e;">0%</span>
-                            <span id="pctLow" class="status-pill" style="background: rgba(0, 184, 110, 0.1); color: #00b86e;">0%</span>
+                        <div id="pwStrengthFill" class="progress-track" style="height:4px;margin-bottom:0.5rem;display:none;">
+                            <div class="progress-fill" style="width:0%;"></div>
                         </div>
-                    </div>
-                    <div id="chartsGrid" class="charts-grid">
-                        <div class="card" style="padding: 10px; background: var(--surface-elevated);"><canvas id="chartRisk"></canvas></div>
-                        <div class="card" style="padding: 10px; background: var(--surface-elevated);"><canvas id="chartLength"></canvas></div>
-                        <div class="card" style="padding: 10px; background: var(--surface-elevated);"><canvas id="chartStrength"></canvas></div>
-                        <div class="card" style="padding: 10px; background: var(--surface-elevated);"><canvas id="chartPattern"></canvas></div>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card-header">
-                        <i data-lucide="shield-check"></i>
-                        <span>Compliance Status</span>
-                        <button id="toggleCompliance" class="btn btn-ghost" style="margin-left: auto; padding: 2px 8px; font-size: 10px;">
-                            <span id="pillCompliance">Off</span>
-                        </button>
-                    </div>
-                    <div id="complianceSection" style="display: none;">
-                        <div id="complianceWrap">
-                            <div class="compliance-row"><span>NIST 800-63B</span><span class="status-pill green">Compliant</span></div>
-                            <div class="compliance-row"><span>OWASP Top 10</span><span class="status-pill green">Compliant</span></div>
-                            <div class="compliance-row"><span>ISO/IEC 27001</span><span class="status-pill green">Compliant</span></div>
+                        <div id="pwStrengthLabel" class="text-muted" style="font-size:11px;margin-bottom:1rem;display:none;">Strength: Poor</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:1rem;">
+                            <button id="pwCheckBtn" class="btn btn-ghost"><i data-lucide="shield" style="width:14px;height:14px;"></i> Check</button>
+                            <button id="pwHIBPBtn"  class="btn btn-ghost"><i data-lucide="database" style="width:14px;height:14px;"></i> HIBP Lookup</button>
                         </div>
+                        <div id="pwResultWrap"  style="font-size:13px;color:var(--text-muted);"></div>
+                        <div id="hibpResultWrap" class="hibp-wrap" style="display:none;margin-top:0.75rem;"></div>
                     </div>
                 </div>
 
-                <div id="breachSection" class="card" style="display: none;">
-                    <div class="card-header">
-                        <i data-lucide="shield-alert"></i>
+            </div><!-- end .dash-hero-row -->
+
+            <!-- ── ROW 2: BREACH ANALYSIS ─────────────────────────────────── -->
+            <div id="breachSection" class="dash-breach-card" style="display:none;">
+                <div class="dash-breach-header">
+                    <div class="dash-breach-title">
+                        <i data-lucide="shield-alert" style="width:18px;height:18px;color:#febc2e;flex-shrink:0;"></i>
                         <span>Breach Analysis</span>
-                        <button id="toggleBreach" class="btn btn-ghost" style="margin-left: auto; padding: 2px 8px; font-size: 10px;">
-                            <span id="pillBreach">Off</span>
-                        </button>
+                        <span class="status-pill warning" style="font-size:11px;">HIBP Cross-reference</span>
                     </div>
-                    <div id="breachContainer" class="breach-list"></div>
+                    <div id="breachSummaryBadges" class="dash-breach-badges"></div>
+                </div>
+                <div id="breachContainer" class="dash-breach-grid"></div>
+            </div>
+
+            <!-- ── ROW 3: CHARTS 2×2 ─────────────────────────────────────── -->
+            <div id="resultsSection" class="dash-charts-section" style="display:none;">
+                <div class="dash-charts-header">
+                    <h2 class="dash-section-title">
+                        <i data-lucide="bar-chart-3" style="width:18px;height:18px;color:var(--accent);"></i>
+                        Security Distribution
+                    </h2>
+                </div>
+                <div id="chartsGrid" class="dash-charts-grid">
+                    <div class="card dash-chart-card">
+                        <div class="dash-chart-label">Risk Distribution</div>
+                        <div class="chart-canvas-wrap"><canvas id="chartRisk"></canvas></div>
+                    </div>
+                    <div class="card dash-chart-card">
+                        <div class="dash-chart-label">Length Distribution</div>
+                        <div class="chart-canvas-wrap"><canvas id="chartLength"></canvas></div>
+                    </div>
+                    <div class="card dash-chart-card">
+                        <div class="dash-chart-label">Strength Breakdown</div>
+                        <div class="chart-canvas-wrap"><canvas id="chartStrength"></canvas></div>
+                    </div>
+                    <div class="card dash-chart-card">
+                        <div class="dash-chart-label">Pattern Composition</div>
+                        <div class="chart-canvas-wrap"><canvas id="chartPattern"></canvas></div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Right Column: Simulation & AI -->
-            <div id="simulationSection" class="right-col reveal" style="display: none;">
-                <div class="card terminal-card lab-card">
-                    <div class="terminal-split">
-                        <div class="terminal-side-output">
-                            <div class="terminal-header">
-                                <div class="dot dot-red"></div>
-                                <div class="dot dot-yellow"></div>
-                                <div class="dot dot-green"></div>
-                                <span style="font-size: 11px; color: var(--text-muted); margin-left: 8px;">Audit Simulation Lab v4.0</span>
-                            </div>
-                            <div id="attackTerminal" class="terminal-body" style="min-height: 320px;">
-                                <div><span class="terminal-prompt">$</span>exec br_force --profile generic</div>
-                                <div class="log-dim">[SYSTEM] Initialized attack environment...</div>
-                                <div id="attackResults"></div>
-                                <div class="terminal-cursor-line">
-                                    <span class="terminal-prompt">$</span><span class="blinking-cursor">_</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="terminal-side-controls">
-                            <div style="margin-bottom: 24px;">
-                                <label class="card-label" style="display: block; margin-bottom: 12px; font-size: 11px; color: var(--text-muted);">Simulation Parameters</label>
-                                <div class="control-stack" style="display: flex; flex-direction: column; gap: 16px;">
-                                    <div class="control-item">
-                                        <div style="font-size: 12px; margin-bottom: 4px;">Complexity Target</div>
-                                        <div class="status-pill warning">High-Intensity</div>
-                                    </div>
-                                    <div class="control-item">
-                                        <div style="font-size: 12px; margin-bottom: 4px;">Vector ID</div>
-                                        <div style="font-family: var(--font-mono); font-size: 12px;">#0x9a2_AUDIT</div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <button id="btnRunSim" class="btn btn-primary btn-huge">
-                                <i data-lucide="zap"></i> EXECUTE SIMULATION
-                            </button>
-                            
-                            <button id="downloadBtn" class="btn btn-ghost" style="width: 100%; margin-top: 12px; font-size: 11px;">
-                                <i data-lucide="download" style="width: 14px;"></i> Export Log Data
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card" style="flex: 1;">
-                    <div class="card-header">
-                        <i data-lucide="sparkles"></i>
-                        <span>AI Simulation Diagnostics</span>
-                        <button id="openAIDrawer" class="btn btn-ghost" style="margin-left: auto;">
-                            View Recommendations
-                        </button>
-                    </div>
+            <!-- JS-compat stubs (hidden, never rendered) -->
+            <div style="display:none;" aria-hidden="true">
+                <button id="toggleCompliance"><span id="pillCompliance">Off</span></button>
+                <button id="toggleBreach"><span id="pillBreach">Off</span></button>
+                <div id="complianceSection"></div>
+                <div id="scoreWrapper"></div>
+                <div id="resetAction"></div>
+                <div id="simulationSection">
+                    <div id="attackTerminal"><div id="attackResults"></div></div>
+                    <button id="btnRunSim"></button>
+                    <button id="openAIDrawer"></button>
                 </div>
             </div>
-        </div>
 
-        <div id="resetAction" style="display: none; text-align: center; margin-top: 2rem;">
-            <button id="newAnalysisBtn" class="btn btn-ghost">
-                <i data-lucide="rotate-ccw"></i>
-                Reset Analysis Environment
-            </button>
-        </div>
         </div>
         </section><!-- end #page-dashboard -->
 
         <!-- ═══ PAGE: COMPLIANCE ═══════════════════════════════════════ -->
+        <!-- ═══ PAGE: COMPLIANCE ══════════════════════════════════════ -->
         <section id="page-compliance" class="page-section" style="display:none;">
-            <div class="page-hero">
-                <h1>Compliance <span>Status</span></h1>
-                <p class="page-subtitle">Run an analysis first to see your compliance posture against industry standards.</p>
-            </div>
-            <div id="compliancePageContent">
-                <div class="empty-state">
-                    <i data-lucide="shield-off" style="width:48px;height:48px;color:var(--text-muted);margin-bottom:1rem;"></i>
-                    <p>No analysis data yet. Upload a password file from the Dashboard.</p>
+            <div class="panel-header">
+                <div>
+                    <h1 class="panel-title">Compliance <span>Status</span></h1>
+                    <p class="panel-subtitle">Your password policy posture against industry standards.</p>
                 </div>
             </div>
+            <div id="compliancePageContent">
+                <!-- Empty state — replaced by renderCompliance() after analysis -->
+                <div class="panel-empty-state">
+                    <i data-lucide="shield-off"></i>
+                    <p>No analysis data yet.</p>
+                    <span>Upload a password file from the Dashboard to see your compliance posture.</span>
+                </div>
+            </div>
+            <!-- complianceWrap lives here so renderCompliance() can find it -->
+            <div id="complianceWrap" style="display:none;"></div>
         </section><!-- end #page-compliance -->
 
-        <!-- ═══ PAGE: TERMINAL ═══════════════════════════════════════ -->
+        <!-- ═══ PAGE: TERMINAL ════════════════════════════════════════ -->
         <section id="page-terminal" class="page-section" style="display:none;">
-            <div class="page-hero">
-                <h1>Attack <span>Terminal</span></h1>
-                <p class="page-subtitle">Simulated attack environment — run an analysis first to load target data.</p>
+            <div class="panel-header">
+                <div>
+                    <h1 class="panel-title">Attack <span>Terminal</span></h1>
+                    <p class="panel-subtitle">Simulated attack environment against your loaded dataset.</p>
+                </div>
+                <button id="btnRunSim" class="btn btn-primary" style="flex-shrink:0;">
+                    <i data-lucide="zap" style="width:15px;height:15px;"></i> Execute Simulation
+                </button>
             </div>
             <div id="terminalPageContent">
-                <div class="empty-state">
-                    <i data-lucide="terminal" style="width:48px;height:48px;color:var(--text-muted);margin-bottom:1rem;"></i>
-                    <p>No dataset loaded. Return to Dashboard and run an analysis.</p>
+                <div class="card terminal-card" style="margin-bottom:0;">
+                    <div class="terminal-header">
+                        <div class="dot dot-red"></div><div class="dot dot-yellow"></div><div class="dot dot-green"></div>
+                        <span style="font-size:11px;color:var(--text-muted);margin-left:8px;">Audit Simulation Lab v4.0 — <span style="color:var(--accent);">Attack Vector Engine</span></span>
+                    </div>
+                    <div id="attackTerminal" class="terminal-body" style="min-height:420px;">
+                        <div><span class="terminal-prompt">$</span>exec br_force --profile generic</div>
+                        <div class="log-dim">[SYSTEM] Initialized attack environment. Run an analysis from the Dashboard to load target data.</div>
+                        <div id="attackResults"></div>
+                        <div class="terminal-cursor-line"><span class="terminal-prompt">$</span><span class="blinking-cursor">_</span></div>
+                    </div>
                 </div>
             </div>
         </section><!-- end #page-terminal -->
 
         <!-- ═══ PAGE: AI POLICY ═══════════════════════════════════════ -->
         <section id="page-ai-policy" class="page-section" style="display:none;">
-            <div class="page-hero">
-                <h1>AI <span>Policy</span></h1>
-                <p class="page-subtitle">Generate and apply intelligent password policies tailored to your organisation.</p>
+            <div class="panel-header">
+                <div>
+                    <h1 class="panel-title">AI <span>Policy</span></h1>
+                    <p class="panel-subtitle">Intelligent password policies and projected impact for your organisation.</p>
+                </div>
+                <button id="openAIDrawer" class="btn btn-ghost" style="flex-shrink:0;">
+                    <i data-lucide="sparkles" style="width:15px;height:15px;"></i> AI Insights
+                </button>
             </div>
             <div id="aiPolicyPageContent">
-                <div class="empty-state">
-                    <i data-lucide="sparkles" style="width:48px;height:48px;color:var(--text-muted);margin-bottom:1rem;"></i>
-                    <p>No analysis data yet. Upload a password file from the Dashboard.</p>
+                <div class="panel-empty-state">
+                    <i data-lucide="sparkles"></i>
+                    <p>No analysis data yet.</p>
+                    <span>Upload a password file from the Dashboard to generate AI-powered policy recommendations.</span>
                 </div>
             </div>
+            <!-- policySection injected here by renderPolicyImpact() -->
+            <div id="policySection" style="display:none;"></div>
         </section><!-- end #page-ai-policy -->
 
-        <!-- ═══ PAGE: REPORTS ═══════════════════════════════════════ -->
+        <!-- ═══ PAGE: REPORTS ═════════════════════════════════════════ -->
         <section id="page-reports" class="page-section" style="display:none;">
-            <div class="page-hero">
-                <h1>Security <span>Reports</span></h1>
-                <p class="page-subtitle">Download and review your past audit reports.</p>
+            <div class="panel-header">
+                <div>
+                    <h1 class="panel-title">Security <span>Reports</span></h1>
+                    <p class="panel-subtitle">Download and review your security audit reports.</p>
+                </div>
+                <button id="downloadBtnReports" class="btn btn-report" style="flex-shrink:0;">
+                    <i data-lucide="download" style="width:15px;height:15px;"></i> Download PDF Report
+                </button>
             </div>
             <div id="reportsPageContent">
-                <div class="empty-state">
-                    <i data-lucide="file-text" style="width:48px;height:48px;color:var(--text-muted);margin-bottom:1rem;"></i>
-                    <p>No reports yet. Complete an analysis to generate your first report.</p>
+                <div class="panel-empty-state">
+                    <i data-lucide="file-text"></i>
+                    <p>No reports yet.</p>
+                    <span>Complete an analysis on the Dashboard to generate your first security report.</span>
                 </div>
             </div>
         </section><!-- end #page-reports -->

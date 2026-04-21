@@ -24,6 +24,7 @@
         setupToggles();
         setupSimulation();
         setupResetBtn();
+        setupReportsDownload();
         setupLogout();
         setupSidebar();
         setupSettingsNav();
@@ -475,6 +476,8 @@
     function renderResults(data) {
         const ov = data.overview || {};
         [$('resultsSection'),$('simulationSection'),$('scoreWrapper'),$('resetAction')].forEach(el => { if (el) el.style.display='block'; });
+        // Reveal header Download Report + Reset buttons (new layout)
+        [$('downloadBtn'),$('newAnalysisBtn')].forEach(el=>{ if(el) el.style.removeProperty('display'); });
 
         setText('resTotalPw',   ov.total_passwords);
         setText('resUniquePw',  ov.unique_passwords);
@@ -492,18 +495,34 @@
         setText('pctLow',    pct(low,tot)+'%');
 
         animateScore(Math.round(ov.risk_score||0), data.risk_level);
-        initRealCharts(data);
+        // Bug 1 fix: defer chart init until after browser reflow so canvas has real dimensions
+        requestAnimationFrame(() => requestAnimationFrame(() => initRealCharts(data)));
         renderCompliance(data.compliance);
 
-        if (data.breach_statistics||data.breach_stats) {
+        if (data.hibp) {
             const bs=$('breachSection'), bc=$('breachContainer');
             if (bs) bs.style.display='block';
-            if (bc&&window.HIBP) HIBP.renderBreachStats(data.breach_statistics||data.breach_stats,bc);
+            if (bc&&window.HIBP) HIBP.renderBreachStats(data,bc);
             const pill=$('pillBreach'); if (pill) { pill.textContent='On'; pill.style.color='var(--accent)'; }
         }
 
         renderAttackScenarios(data.attack_scenarios);
         renderPolicyImpact(data.policy_impact, data.recommended_password_policy, data.password_examples);
+        // Populate the Reports panel
+        const rpc=$('reportsPageContent');
+        if (rpc&&S.results) {
+            const ov2=data.overview||{};
+            rpc.innerHTML=`<div class="card" style="padding:28px;">
+                <div class="card-header"><i data-lucide="file-text"></i><span>Latest Analysis Report</span></div>
+                <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px;">
+                    <div class="metric-card"><div class="metric-label">Total Passwords</div><div class="metric-value">${esc(ov2.total_passwords||0)}</div></div>
+                    <div class="metric-card"><div class="metric-label">Risk Score</div><div class="metric-value">${esc(Math.round(ov2.risk_score||0))}/100</div></div>
+                    <div class="metric-card danger"><div class="metric-label">High Risk</div><div class="metric-value" style="color:#ff5f57;">${esc(ov2.weak_passwords||0)}</div></div>
+                </div>
+                <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">Use the <strong style="color:var(--text-primary);">Download PDF Report</strong> button above to export the full security audit.</p>
+            </div>`;
+            if (window.lucide) lucide.createIcons();
+        }
         if (window.lucide) lucide.createIcons();
     }
 
@@ -521,34 +540,97 @@
     }
 
     function renderCompliance(compliance) {
-        const wrap=$('complianceWrap'); if (!wrap||!compliance) return;
-        const items=[{label:'NIST 800-63B',status:compliance.nist_compliance_status||'N/A'},{label:'OWASP Top 10',status:compliance.owasp_risk_level||'N/A'},{label:'ISO/IEC 27001',status:compliance.iso_compliance_status||compliance.iso_status||'N/A'}];
-        wrap.innerHTML=items.map(item=>{
-            const s=(item.status||'').toLowerCase(), ok=s==='compliant'||s==='low', mid=s.includes('partial')||s==='medium';
-            const bg=ok?'rgba(0,184,110,0.12)':mid?'rgba(254,188,46,0.12)':'rgba(255,95,87,0.12)', col=ok?'#00b86e':mid?'#febc2e':'#ff5f57';
-            return `<div class="compliance-row"><span style="font-size:13px">${esc(item.label)}</span><span class="status-pill" style="background:${bg};color:${col}">${esc(item.status)}</span></div>`;
-        }).join('');
+        // Render full compliance detail into the Compliance panel
+        const pageContent = $('compliancePageContent');
+        if (!pageContent || !compliance) return;
+        const items = [
+            { label: 'NIST SP 800-63B', status: compliance.nist_compliance_status || 'N/A', desc: 'Digital identity guidelines for password length and complexity.' },
+            { label: 'OWASP Top 10',    status: compliance.owasp_risk_level        || 'N/A', desc: 'Web application security risk classification.' },
+            { label: 'ISO/IEC 27001',   status: compliance.iso_compliance_status   || compliance.iso_status || 'N/A', desc: 'Information security management systems standard.' },
+        ];
+        pageContent.innerHTML = `
+            <div class="compliance-panel-grid">
+            ${items.map(item => {
+                const s = (item.status || '').toLowerCase();
+                const ok  = s === 'compliant' || s === 'low';
+                const mid = s.includes('partial') || s === 'medium';
+                const bg  = ok ? 'rgba(0,184,110,0.10)' : mid ? 'rgba(254,188,46,0.10)' : 'rgba(255,95,87,0.10)';
+                const col = ok ? '#00b86e' : mid ? '#febc2e' : '#ff5f57';
+                const icon = ok ? 'shield-check' : mid ? 'shield-alert' : 'shield-x';
+                return `<div class="compliance-panel-card" style="border-top-color:${col};">
+                    <div class="compliance-panel-card-top">
+                        <i data-lucide="${icon}" style="width:22px;height:22px;color:${col};flex-shrink:0;"></i>
+                        <div>
+                            <div class="compliance-panel-card-name">${esc(item.label)}</div>
+                            <div class="compliance-panel-card-desc">${esc(item.desc)}</div>
+                        </div>
+                        <span class="status-pill" style="background:${bg};color:${col};margin-left:auto;flex-shrink:0;">${esc(item.status)}</span>
+                    </div>
+                </div>`;
+            }).join('')}
+            </div>`;
+        // Also update hidden complianceWrap for legacy JS-compat references
+        const wrap = $('complianceWrap');
+        if (wrap) {
+            wrap.style.display = 'block';
+            wrap.innerHTML = items.map(item => {
+                const s = (item.status||'').toLowerCase(), ok = s==='compliant'||s==='low', mid = s.includes('partial')||s==='medium';
+                const bg = ok?'rgba(0,184,110,0.12)':mid?'rgba(254,188,46,0.12)':'rgba(255,95,87,0.12)', col = ok?'#00b86e':mid?'#febc2e':'#ff5f57';
+                return `<div class="compliance-row"><span style="font-size:13px">${esc(item.label)}</span><span class="status-pill" style="background:${bg};color:${col}">${esc(item.status)}</span></div>`;
+            }).join('');
+        }
         const sec=$('complianceSection'), pill=$('pillCompliance');
         if (sec) sec.style.display='block'; if (pill) { pill.textContent='On'; pill.style.color='var(--accent)'; }
+        if (window.lucide) lucide.createIcons();
     }
 
     function renderAttackScenarios(attacks) {
         const term=$('attackResults'); if (!term||!attacks||!attacks.length) return;
         term.innerHTML='';
         attacks.forEach((a,i)=>setTimeout(()=>{
-            const div=document.createElement('div'), p=(a.probability||0).toFixed(1), col=a.probability>60?'#ff5f57':a.probability>30?'#febc2e':'#00d4ff';
-            div.className='log-dim'; div.innerHTML=`<span class="terminal-prompt">$</span><span style="color:${col}">[${p}%]</span> ${esc(a.name)}: ${esc(a.description)} (${(a.count||0).toLocaleString()}/${(a.total||0).toLocaleString()})`;
+            const div=document.createElement('div');
+            // Bug 5 fix: fallback returns strings; normal path returns objects
+            let p, col, line;
+            if (typeof a === 'string') {
+                p = 0; col = '#00d4ff';
+                line = `<span class="terminal-prompt">$</span><span style="color:${col}">[--]</span> ${esc(a)}`;
+            } else {
+                p = (a.probability||0).toFixed(1);
+                col = a.probability>60?'#ff5f57':a.probability>30?'#febc2e':'#00d4ff';
+                line = `<span class="terminal-prompt">$</span><span style="color:${col}">[${p}%]</span> ${esc(a.name)}: ${esc(a.description)} (${(a.count||0).toLocaleString()}/${(a.total||0).toLocaleString()})`;
+            }
+            div.className='log-dim'; div.innerHTML=line;
             term.appendChild(div); term.scrollTop=term.scrollHeight;
         }, i*200));
     }
 
     function renderPolicyImpact(policy, recommended, examples) {
         if (!policy) return;
-        let wrap=$('policySection');
-        if (!wrap) { wrap=document.createElement('div'); wrap.id='policySection'; wrap.className='card'; wrap.style.marginTop='1.25rem'; const col=qs('.right-col'); if (col) col.appendChild(wrap); }
-        const imp=policy.projected_improvement||{};
-        const rows=[['Current Score',(policy.current_score||0)+'/100'],['Projected Score',(imp.projected_score||0)+'/100'],['Improvement','+'+(imp.improvement||0).toFixed(1)+' pts']];
-        wrap.innerHTML=`<div class="card-header"><i data-lucide="trending-up"></i><span>Policy Impact</span></div>${rows.map(([l,v])=>`<div class="policy-row"><span style="font-size:12px">${esc(l)}</span><span class="policy-val">${esc(v)}</span></div>`).join('')}${recommended?`<div class="ai-insight-item" style="margin-top:12px;font-size:11px">${esc(typeof recommended==='string'?recommended:recommended.description||'')}</div>`:''}`;
+        // Target the dedicated AI Policy panel section
+        const wrap = $('policySection');
+        if (!wrap) return;
+        wrap.style.display = 'block';
+        // Bug 2 fix: policy_simulator returns flat keys — no nested projected_improvement wrapper
+        const currentScore  = policy.current_score   || 0;
+        const projectedScore = policy.projected_score || 0;
+        const improvement   = (projectedScore - currentScore);
+        const rows = [
+            ['Current Score',   Math.round(currentScore)  + '/100'],
+            ['Projected Score', Math.round(projectedScore) + '/100'],
+            ['Improvement',     '+' + improvement.toFixed(1) + ' pts'],
+        ];
+        const recText = recommended ? (typeof recommended === 'string' ? recommended : recommended.description || '') : '';
+        // Also clear the empty-state
+        const pc = $('aiPolicyPageContent');
+        if (pc) pc.innerHTML = '';
+        wrap.className = 'card';
+        wrap.style.marginTop = '0';
+        wrap.innerHTML = `
+            <div class="card-header"><i data-lucide="trending-up"></i><span>Policy Impact</span></div>
+            <div class="policy-impact-grid">
+                ${rows.map(([l,v]) => `<div class="policy-impact-row"><span class="policy-impact-label">${esc(l)}</span><span class="policy-val">${esc(v)}</span></div>`).join('')}
+            </div>
+            ${recText ? `<div class="ai-insight-item" style="margin-top:16px;font-size:12px;line-height:1.6;">${esc(recText)}</div>` : ''}`;
         if (window.lucide) lucide.createIcons();
     }
 
@@ -567,36 +649,361 @@
         const med =rd['Medium Risk']??rd.medium??ov.medium_passwords??0;
         const low =rd['Low Risk']??rd.low??ov.strong_passwords??0;
 
-        // 1. Doughnut — legend right
-        const c1=$('chartRisk');
-        if (c1) S.charts.risk=new Chart(c1.getContext('2d'),{type:'doughnut',data:{labels:['High Risk','Medium Risk','Low Risk'],datasets:[{data:[high,med,low],backgroundColor:['#ff5f57','#febc2e','#00b86e'],borderWidth:0,hoverOffset:12}]},options:{cutout:'72%',maintainAspectRatio:false,plugins:{legend:{display:true,position:'right',labels:{color:'#666',usePointStyle:true,font:{size:11,family:'JetBrains Mono'}}}}}});
+        // Detect dark theme for dynamic color adaptation
+        const isDark = document.documentElement.getAttribute('data-theme')==='dark'
+            || window.matchMedia('(prefers-color-scheme: dark)').matches;
+        const textColor   = isDark ? '#7a8a9a' : '#5a7a76';
+        const gridColor   = isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.05)';
+        const labelColor  = isDark ? '#b0c0cc' : '#3a5a56';
+        const FONT_MONO   = 'JetBrains Mono';
+        const FONT_BODY   = 'Inter';
 
-        // 2. Horizontal bar — length distribution
-        const c2=$('chartLength');
+        // ── Shared plugin: animated gradient bar fill ─────────────────────
+        const gradientBar = (ctx, chartArea, colorA, colorB) => {
+            if (!chartArea) return colorA;
+            const g = ctx.createLinearGradient(chartArea.left,0,chartArea.right,0);
+            g.addColorStop(0, colorA);
+            g.addColorStop(1, colorB);
+            return g;
+        };
+
+        // ══ 1. DOUGHNUT — Risk Distribution ══════════════════════════════
+        const c1 = $('chartRisk');
+        if (c1) {
+            const ctx1 = c1.getContext('2d');
+            // Custom centre-text plugin
+            const centrePlugin = {
+                id: 'centreText',
+                afterDraw(chart) {
+                    const { ctx: c, chartArea: { top, bottom, left, right } } = chart;
+                    const total = chart.data.datasets[0].data.reduce((a,b)=>a+b,0);
+                    if (!total) return;
+                    const cx = (left+right)/2, cy = (top+bottom)/2;
+                    c.save();
+                    c.textAlign='center'; c.textBaseline='middle';
+                    c.font = `700 28px ${FONT_MONO}`;
+                    c.fillStyle = isDark ? '#f0f0f0' : '#0a0c10';
+                    c.fillText(total.toLocaleString(), cx, cy-10);
+                    c.font = `500 10px ${FONT_MONO}`;
+                    c.fillStyle = textColor;
+                    c.fillText('TOTAL', cx, cy+14);
+                    c.restore();
+                }
+            };
+            S.charts.risk = new Chart(ctx1, {
+                type: 'doughnut',
+                plugins: [centrePlugin],
+                data: {
+                    labels: ['High Risk','Medium Risk','Low Risk'],
+                    datasets: [{
+                        data: [high, med, low],
+                        backgroundColor: ['#ff4d6d','#ffb100','#00e5a0'],
+                        borderColor:     ['#ff4d6d','#ffb100','#00e5a0'],
+                        borderWidth: 2,
+                        hoverOffset: 16,
+                        hoverBorderWidth: 0,
+                        borderRadius: 4,
+                        spacing: 3
+                    }]
+                },
+                options: {
+                    cutout: '74%',
+                    maintainAspectRatio: false,
+                    animation: { animateRotate: true, duration: 900, easing: 'easeOutQuart' },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'right',
+                            labels: {
+                                color: labelColor,
+                                usePointStyle: true,
+                                pointStyleWidth: 10,
+                                padding: 18,
+                                font: { size: 11, family: FONT_MONO, weight: '600' }
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: isDark ? '#161b24' : '#fff',
+                            borderColor: 'rgba(0,229,255,0.3)',
+                            borderWidth: 1,
+                            titleColor: isDark ? '#f0f0f0' : '#0a0c10',
+                            bodyColor: textColor,
+                            titleFont: { family: FONT_MONO, size: 12, weight: '700' },
+                            bodyFont: { family: FONT_MONO, size: 11 },
+                            padding: 12,
+                            callbacks: {
+                                label: ctx => {
+                                    const total = ctx.dataset.data.reduce((a,b)=>a+b,0);
+                                    const pct = total ? ((ctx.parsed/total)*100).toFixed(1) : 0;
+                                    return `  ${ctx.label}: ${ctx.parsed.toLocaleString()} (${pct}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ══ 2. HORIZONTAL BAR — Length Distribution ══════════════════════
+        const c2 = $('chartLength');
         if (c2) {
-            const ld=data.patterns?.length_distribution;
-            let labels,values;
-            if (ld&&typeof ld==='object'&&Object.keys(ld).length) { labels=Object.keys(ld); values=Object.values(ld); }
-            else { labels=['<8 chars','8-11 chars','12-15 chars','16+ chars']; values=[ov.weak_passwords||0,Math.round((ov.medium_passwords||0)*0.6),Math.round((ov.medium_passwords||0)*0.4),ov.strong_passwords||0]; }
-            S.charts.length=new Chart(c2.getContext('2d'),{type:'bar',data:{labels,datasets:[{label:'Length',data:values,backgroundColor:'rgba(0,212,255,0.4)',borderColor:'#00d4ff',borderWidth:1,borderRadius:4}]},options:{indexAxis:'y',maintainAspectRatio:false,scales:{x:{grid:{display:false},ticks:{color:'#666',font:{size:10}}},y:{grid:{display:false},ticks:{color:'#888',font:{size:11}}}},plugins:{legend:{display:false}}}});
-        }
-
-        // 3. Radar — composition
-        const c3=$('chartStrength');
-        if (c3) {
-            const comp=data.patterns?.character_composition||{};
-            S.charts.strength=new Chart(c3.getContext('2d'),{type:'radar',data:{labels:['Entropy','Diversity','Complexity','Novelty','Resilience'],datasets:[{label:'Baseline',data:[comp.uppercase?.percentage||0,comp.lowercase?.percentage||0,comp.digits?.percentage||0,comp.special?.percentage||0,Math.min(100,(ov.average_length||0)*5)],backgroundColor:'rgba(0,212,255,0.1)',borderColor:'#00d4ff',borderWidth:2,pointBackgroundColor:'#00d4ff'}]},options:{maintainAspectRatio:false,scales:{r:{angleLines:{color:'rgba(255,255,255,0.05)'},grid:{color:'rgba(255,255,255,0.05)'},pointLabels:{color:'#888',font:{size:11,family:'Inter'}},ticks:{display:false}}},plugins:{legend:{display:false}}}});
-        }
-
-        // 4. Pattern horizontal bars
-        const c4=$('chartPattern');
-        if (c4) {
-            const p=data.patterns?.patterns||{};
-            const pm=[{label:'Dictionary',key:'dictionary_based',color:'#ff5f57'},{label:'Name',key:'name_based',color:'#ff8c42'},{label:'Num Suffix',key:'numeric_suffix',color:'#febc2e'},{label:'Keyboard',key:'keyboard_walk',color:'#00d4ff'},{label:'Cap Misuse',key:'capitalization_misuse',color:'#9b59ff'},{label:'Leet',key:'leetspeak',color:'#00e5cc'},{label:'Sequential',key:'sequential_numbers',color:'#00b86e'}].filter(x=>p[x.key]&&(p[x.key].percentage||0)>0);
-            if (pm.length) {
-                S.charts.pattern=new Chart(c4.getContext('2d'),{type:'bar',data:{labels:pm.map(x=>x.label),datasets:[{data:pm.map(x=>p[x.key]?.percentage||0),backgroundColor:pm.map(x=>x.color+'cc'),borderWidth:0,borderRadius:3}]},options:{indexAxis:'y',maintainAspectRatio:false,scales:{x:{grid:{display:false},ticks:{color:'#666',font:{size:11}}},y:{grid:{display:false},ticks:{color:'#888',font:{size:11}}}},plugins:{legend:{display:false}}}});
+            const ld=data.length_distribution||data.dataset_stats?.length_distribution||null;
+            let labels, values;
+            const BUCKETS=[
+                {key:'less_than_8',label:'< 8 chars'},
+                {key:'8_to_11',    label:'8–11 chars'},
+                {key:'12_to_15',   label:'12–15 chars'},
+                {key:'16_plus',    label:'16+ chars'},
+            ];
+            if (ld && typeof ld==='object' && Object.keys(ld).length) {
+                labels = BUCKETS.map(b=>b.label);
+                values = BUCKETS.map(b=>ld[b.key]||0);
             } else {
-                S.charts.pattern=new Chart(c4.getContext('2d'),{type:'bar',data:{labels:['Wk1','Wk2','Wk3','Wk4','Wk5','Wk6','Wk7','Wk8'],datasets:[{label:'Score',data:[45,52,48,70,65,80,85,Math.round(ov.risk_score||0)],backgroundColor:'rgba(0,212,255,0.2)',borderColor:'#00d4ff',borderWidth:1}]},options:{maintainAspectRatio:false,scales:{x:{grid:{display:false},ticks:{color:'#666',font:{size:11}}},y:{grid:{color:'rgba(255,255,255,0.03)'},ticks:{color:'#666',font:{size:11}}}},plugins:{legend:{display:false}}}});
+                labels = BUCKETS.map(b=>b.label);
+                values = [ov.weak_passwords||0,Math.round((ov.medium_passwords||0)*0.6),Math.round((ov.medium_passwords||0)*0.4),ov.strong_passwords||0];
+            }
+            // Assign colour by risk: short=red, medium=amber, long=cyan/green
+            const barColors = ['#ff4d6d','#ffb100','#00d4ff','#00e5a0'];
+            const ctx2 = c2.getContext('2d');
+            S.charts.length = new Chart(ctx2, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Passwords',
+                        data: values,
+                        backgroundColor: barColors.map(c=>c+'33'),
+                        borderColor: barColors,
+                        borderWidth: 2,
+                        borderRadius: 6,
+                        borderSkipped: false,
+                        hoverBackgroundColor: barColors.map(c=>c+'66'),
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    maintainAspectRatio: false,
+                    animation: { duration: 800, easing: 'easeOutCubic' },
+                    scales: {
+                        x: {
+                            grid: { color: gridColor, lineWidth: 1 },
+                            ticks: { color: textColor, font: { size: 10, family: FONT_MONO } },
+                            border: { display: false }
+                        },
+                        y: {
+                            grid: { display: false },
+                            ticks: { color: labelColor, font: { size: 11, family: FONT_MONO, weight:'600' } },
+                            border: { display: false }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: isDark ? '#161b24' : '#fff',
+                            borderColor: 'rgba(0,229,255,0.3)',
+                            borderWidth: 1,
+                            titleColor: isDark ? '#f0f0f0' : '#0a0c10',
+                            bodyColor: textColor,
+                            titleFont: { family: FONT_MONO, size: 12, weight:'700' },
+                            bodyFont: { family: FONT_MONO, size: 11 },
+                            padding: 12
+                        }
+                    }
+                }
+            });
+        }
+
+        // ══ 3. RADAR — Strength Breakdown ════════════════════════════════
+        const c3 = $('chartStrength');
+        if (c3) {
+            const comp = data.character_composition||{};
+            const radarVals = [
+                comp.uppercase?.percentage||0,
+                comp.lowercase?.percentage||0,
+                comp.digits?.percentage||0,
+                comp.special?.percentage||0,
+                Math.min(100,(ov.average_length||0)*5)
+            ];
+            const ctx3 = c3.getContext('2d');
+            // Gradient fill for radar
+            const radarGrad = ctx3.createRadialGradient(0,0,0,0,0,200);
+            radarGrad.addColorStop(0, 'rgba(0,229,255,0.25)');
+            radarGrad.addColorStop(1, 'rgba(0,255,170,0.04)');
+            S.charts.strength = new Chart(ctx3, {
+                type: 'radar',
+                data: {
+                    labels: ['Uppercase','Lowercase','Digits','Special','Length'],
+                    datasets: [{
+                        label: 'Composition',
+                        data: radarVals,
+                        backgroundColor: radarGrad,
+                        borderColor: '#00e5ff',
+                        borderWidth: 2.5,
+                        pointBackgroundColor: '#00e5ff',
+                        pointBorderColor: isDark ? '#10141d' : '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 5,
+                        pointHoverRadius: 7,
+                        pointHoverBackgroundColor: '#00ffaa',
+                    }]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    animation: { duration: 1000, easing: 'easeOutQuart' },
+                    scales: {
+                        r: {
+                            min: 0,
+                            max: 100,
+                            angleLines: { color: isDark ? 'rgba(0,229,255,0.08)' : 'rgba(0,100,120,0.12)', lineWidth: 1 },
+                            grid: { color: isDark ? 'rgba(0,229,255,0.06)' : 'rgba(0,100,120,0.08)', lineWidth: 1 },
+                            pointLabels: {
+                                color: labelColor,
+                                font: { size: 11, family: FONT_BODY, weight: '600' },
+                                padding: 10
+                            },
+                            ticks: { display: false, stepSize: 25 }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: isDark ? '#161b24' : '#fff',
+                            borderColor: 'rgba(0,229,255,0.3)',
+                            borderWidth: 1,
+                            titleColor: isDark ? '#f0f0f0' : '#0a0c10',
+                            bodyColor: textColor,
+                            titleFont: { family: FONT_MONO, size: 12, weight:'700' },
+                            bodyFont: { family: FONT_MONO, size: 11 },
+                            padding: 12,
+                            callbacks: { label: ctx => `  ${ctx.label}: ${ctx.parsed.r.toFixed(1)}%` }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ══ 4. HORIZONTAL BAR — Pattern Composition ══════════════════════
+        const c4 = $('chartPattern');
+        if (c4) {
+            const p = data.patterns?.patterns||{};
+            const PATTERNS = [
+                {label:'Dictionary', key:'dictionary_based',     color:'#ff4d6d'},
+                {label:'Names',      key:'name_based',           color:'#ff8c42'},
+                {label:'Num Suffix', key:'numeric_suffix',       color:'#ffb100'},
+                {label:'Keyboard',   key:'keyboard_walk',        color:'#00d4ff'},
+                {label:'Cap Misuse', key:'capitalization_misuse',color:'#a78bfa'},
+                {label:'Leet Speak', key:'leetspeak',            color:'#00e5cc'},
+                {label:'Sequential', key:'sequential_numbers',   color:'#00e5a0'},
+            ].filter(x => p[x.key] && (p[x.key].percentage||0) > 0);
+
+            if (PATTERNS.length) {
+                S.charts.pattern = new Chart(c4.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: PATTERNS.map(x=>x.label),
+                        datasets: [{
+                            data: PATTERNS.map(x=>p[x.key]?.percentage||0),
+                            backgroundColor: PATTERNS.map(x=>x.color+'28'),
+                            borderColor:     PATTERNS.map(x=>x.color),
+                            borderWidth: 2,
+                            borderRadius: 6,
+                            borderSkipped: false,
+                            hoverBackgroundColor: PATTERNS.map(x=>x.color+'55'),
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        maintainAspectRatio: false,
+                        animation: { duration: 800, easing: 'easeOutCubic' },
+                        scales: {
+                            x: {
+                                grid: { color: gridColor },
+                                ticks: { color: textColor, font: { size: 10, family: FONT_MONO },
+                                         callback: v => v+'%' },
+                                border: { display: false },
+                                max: 100
+                            },
+                            y: {
+                                grid: { display: false },
+                                ticks: { color: labelColor, font: { size: 11, family: FONT_MONO, weight:'600' } },
+                                border: { display: false }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: isDark ? '#161b24' : '#fff',
+                                borderColor: 'rgba(0,229,255,0.3)',
+                                borderWidth: 1,
+                                titleColor: isDark ? '#f0f0f0' : '#0a0c10',
+                                bodyColor: textColor,
+                                titleFont: { family: FONT_MONO, size: 12, weight:'700' },
+                                bodyFont: { family: FONT_MONO, size: 11 },
+                                padding: 12,
+                                callbacks: { label: ctx => `  ${ctx.label}: ${ctx.parsed.x.toFixed(1)}%` }
+                            }
+                        }
+                    }
+                });
+            } else {
+                // Fallback sparkline — score trend
+                S.charts.pattern = new Chart(c4.getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: ['Wk1','Wk2','Wk3','Wk4','Wk5','Wk6','Wk7','Now'],
+                        datasets: [{
+                            label: 'Risk Score',
+                            data: [45,52,48,70,65,80,85,Math.round(ov.risk_score||0)],
+                            borderColor: '#00e5ff',
+                            borderWidth: 2.5,
+                            pointBackgroundColor: '#00e5ff',
+                            pointBorderColor: isDark ? '#10141d' : '#fff',
+                            pointBorderWidth: 2,
+                            pointRadius: 5,
+                            pointHoverRadius: 7,
+                            fill: true,
+                            backgroundColor: (ctx) => {
+                                const chart = ctx.chart;
+                                const {ctx:c, chartArea} = chart;
+                                if (!chartArea) return 'rgba(0,229,255,0.05)';
+                                const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+                                g.addColorStop(0, 'rgba(0,229,255,0.18)');
+                                g.addColorStop(1, 'rgba(0,229,255,0.01)');
+                                return g;
+                            },
+                            tension: 0.4,
+                        }]
+                    },
+                    options: {
+                        maintainAspectRatio: false,
+                        animation: { duration: 900, easing: 'easeOutQuart' },
+                        scales: {
+                            x: {
+                                grid: { display: false },
+                                ticks: { color: textColor, font: { size: 10, family: FONT_MONO } },
+                                border: { display: false }
+                            },
+                            y: {
+                                grid: { color: gridColor },
+                                ticks: { color: textColor, font: { size: 10, family: FONT_MONO } },
+                                border: { display: false }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: isDark ? '#161b24' : '#fff',
+                                borderColor: 'rgba(0,229,255,0.3)',
+                                borderWidth: 1,
+                                titleColor: isDark ? '#f0f0f0' : '#0a0c10',
+                                bodyColor: textColor,
+                                titleFont: { family: FONT_MONO, size: 12, weight:'700' },
+                                bodyFont: { family: FONT_MONO, size: 11 },
+                                padding: 12
+                            }
+                        }
+                    }
+                });
             }
         }
     }
@@ -623,8 +1030,16 @@
                 const term=$('attackResults'); if (!term) return; term.innerHTML='';
                 if (S.results&&S.results.attack_scenarios&&S.results.attack_scenarios.length) {
                     S.results.attack_scenarios.forEach((a,i)=>setTimeout(()=>{
-                        const div=document.createElement('div'), p=(a.probability||0).toFixed(1), col=a.probability>60?'#ff5f57':a.probability>30?'#febc2e':'#00d4ff';
-                        div.className='log-dim'; div.innerHTML=`<span class="terminal-prompt">$</span><span style="color:${col}">[${p}%]</span> ${esc(a.name)}: ${esc(a.description)} (${(a.count||0).toLocaleString()} of ${(a.total||0).toLocaleString()})`;
+                        const div=document.createElement('div');
+                        // Bug 5 fix: handle both string (fallback) and object (normal) scenarios
+                        let line;
+                        if (typeof a === 'string') {
+                            line = `<span class="terminal-prompt">$</span><span style="color:#00d4ff">[--]</span> ${esc(a)}`;
+                        } else {
+                            const p=(a.probability||0).toFixed(1), col=a.probability>60?'#ff5f57':a.probability>30?'#febc2e':'#00d4ff';
+                            line = `<span class="terminal-prompt">$</span><span style="color:${col}">[${p}%]</span> ${esc(a.name)}: ${esc(a.description)} (${(a.count||0).toLocaleString()} of ${(a.total||0).toLocaleString()})`;
+                        }
+                        div.className='log-dim'; div.innerHTML=line;
                         term.appendChild(div); term.scrollTop=term.scrollHeight;
                     }, i*280));
                 } else {
@@ -681,11 +1096,17 @@
         });
         if (hibpBtn) hibpBtn.addEventListener('click', async ()=>{
             const pw=inp?.value?.trim(); if (!pw) { toast('Enter a password first.','error'); return; }
+            // Bug 7 fix: /api/hibp/check-password requires login — guard before calling
+            if (!S.user) { toast('Please sign in to use breach checking.','error'); return; }
             hibpBtn.disabled=true;
             const wrap=$('hibpResultWrap');
             if (wrap) { wrap.style.display='block'; wrap.innerHTML='<div style="color:var(--text-muted);font-size:12px">Checking breach database...</div>'; }
             const result=await window.HIBP.checkPassword(pw);
-            if (wrap) HIBP.renderResult(result,wrap);
+            if (result && result.error === 'auth_required') {
+                if (wrap) { wrap.innerHTML='<div style="color:#febc2e;font-size:12px">Sign in required for breach checking.</div>'; }
+            } else if (wrap) {
+                HIBP.renderResult(result,wrap);
+            }
             hibpBtn.disabled=false;
         });
     }
@@ -705,19 +1126,35 @@
 
     function resetDashboard() {
         S.results=null; clearFile();
-        ['resultsSection','simulationSection','scoreWrapper','resetAction'].forEach(id=>{const el=$(id);if(el)el.style.display='none';});
+        // Hide dashboard rows
+        [$('resultsSection'),$('breachSection')].forEach(el=>{ if(el) el.style.display='none'; });
+        [$('downloadBtn'),$('newAnalysisBtn')].forEach(el=>{ if(el) el.style.display='none'; });
         const inp=$('inputSection'); if (inp) inp.style.display='block';
-        ['resTotalPw','resUniquePw','resAvgLength','resHighRisk'].forEach(id=>setText(id,'0'));
+        ['resTotalPw','resUniquePw','resAvgLength','resHighRisk'].forEach(id=>setText(id,'—'));
         ['pctHigh','pctMedium','pctLow'].forEach(id=>setText(id,'0%'));
         const ring=$('scoreRingFill'); if (ring) ring.style.strokeDasharray='0 283';
-        const num=$('scoreNum'); if (num) num.textContent='0';
+        const num=$('scoreNum'); if (num) num.textContent='—';
         const pw=$('pwResultWrap'); if (pw) pw.innerHTML='';
         const hibp=$('hibpResultWrap'); if (hibp) { hibp.innerHTML=''; hibp.style.display='none'; }
         const ar=$('attackResults'); if (ar) ar.innerHTML='';
-        const ps=$('policySection'); if (ps) ps.remove();
+        // Reset panels back to empty states
+        const cpc=$('compliancePageContent');
+        if (cpc) cpc.innerHTML=`<div class="panel-empty-state"><i data-lucide="shield-off"></i><p>No analysis data yet.</p><span>Upload a password file from the Dashboard to see your compliance posture.</span></div>`;
+        const apc=$('aiPolicyPageContent');
+        if (apc) apc.innerHTML=`<div class="panel-empty-state"><i data-lucide="sparkles"></i><p>No analysis data yet.</p><span>Upload a password file from the Dashboard to generate AI-powered policy recommendations.</span></div>`;
+        const ps=$('policySection'); if (ps) { ps.innerHTML=''; ps.style.display='none'; }
+        const rpc=$('reportsPageContent');
+        if (rpc) rpc.innerHTML=`<div class="panel-empty-state"><i data-lucide="file-text"></i><p>No reports yet.</p><span>Complete an analysis on the Dashboard to generate your first security report.</span></div>`;
         Object.values(S.charts).forEach(c=>{try{c.destroy();}catch{}});
         S.charts={};
         if (window.lucide) lucide.createIcons();
+    }
+
+    /* ══ REPORTS PAGE DOWNLOAD ══════════════════════════ */
+    function setupReportsDownload() {
+        // Wire the Reports panel Download button to the same downloadReport() fn
+        const btn=$('downloadBtnReports');
+        if (btn) btn.addEventListener('click', downloadReport);
     }
 
     /* ══ UTILITIES ══════════════════════════════════════ */

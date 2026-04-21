@@ -1,117 +1,65 @@
+/* ═══════════════════════════════════════════════════════════
+   HIBP — Single password inline result styles
+   ═══════════════════════════════════════════════════════════ */
+
 .hibp-wrap {
-    margin-top: 1.5rem;
-    padding-top: 1.5rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
     border-top: 1px solid var(--border);
 }
 
-.hibp-status {
+.hibp-result-inline {
     display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 1rem;
-    border-radius: 6px;
-    background: var(--surface-alt);
-    margin-bottom: 1rem;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.5;
 }
 
-.hibp-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.hibp-result-inline svg {
+    width: 18px;
+    height: 18px;
     flex-shrink: 0;
+    margin-top: 1px;
 }
 
-.hibp-icon.danger { background: rgba(255, 95, 87, 0.1); color: #ff5f57; }
-.hibp-icon.safe { background: rgba(40, 200, 64, 0.1); color: #28c840; }
-
-.hibp-info h4 {
-    font-size: 0.9rem;
-    font-weight: 600;
-    margin-bottom: 0.25rem;
+.hibp-breached {
+    background: rgba(255, 95, 87, 0.10);
+    border: 1px solid rgba(255, 95, 87, 0.25);
+    color: #ff5f57;
 }
 
-.hibp-info p {
-    font-size: 0.8rem;
-    color: var(--text-muted);
+.hibp-safe {
+    background: rgba(40, 200, 64, 0.10);
+    border: 1px solid rgba(40, 200, 64, 0.25);
+    color: #28c840;
 }
 
-.breach-list {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-    margin-top: 1rem;
-}
-
-.breach-item {
-    padding: 1rem;
+.hibp-unknown {
+    background: rgba(120, 130, 150, 0.10);
     border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg);
-}
-
-.breach-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
-}
-
-.breach-name {
-    font-weight: 600;
-    font-size: 0.9rem;
-}
-
-.breach-date {
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
     color: var(--text-muted);
 }
 
-.breach-data {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    font-style: italic;
+/* ═══════════════════════════════════════════════════════════
+   HIBP — Breach stats container
+   renderBreachStats() uses fully inline-styled markup so
+   no CSS cascade can ever collapse the two-column layout.
+   ═══════════════════════════════════════════════════════════ */
+
+#breachContainer {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
 }
 
-/* Severity bar for breach statistics */
-.severity-wrap {
-    margin-top: 2rem;
-}
-
-.severity-row {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
-}
-
-.severity-label {
-    width: 100px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.severity-bar-bg {
-    flex-grow: 1;
-    height: 8px;
-    background: var(--border);
-}
-
-.severity-bar-fill {
-    height: 100%;
-    background: var(--accent);
-    width: 0;
-    transition: width 1s ease;
-}
-
-.severity-count {
-    width: 60px;
-    text-align: right;
-    font-family: var(--font-mono);
-    font-size: 0.9rem;
-    font-weight: 700;
+/* Collapse to single column on narrow viewports */
+@media (max-width: 860px) {
+    #breachContainer > div {
+        display: flex !important;
+        flex-direction: column !important;
+    }
 }

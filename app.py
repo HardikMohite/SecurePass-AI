@@ -38,6 +38,7 @@ from backend.ai_engine import generate_insights, generate_password_examples
 from backend.compliance_mapper import map_to_standards
 from backend.dataset_analyzer import analyze_dataset
 from backend.hibp_engine import check_bulk_passwords
+from backend.hibp_transformer import transform_hibp_stats
 from backend.hibp_routes import hibp_bp
 from backend.pattern_detector import detect_patterns
 from backend.policy_simulator import simulate_policy_impact
@@ -286,19 +287,14 @@ def analyze():
         patterns      = detect_patterns(passwords)
 
         # ── Optional HIBP breach check ───────────────────────────────── #
-        breach_stats = None
+        breach_stats_raw = None
         breach_val = request.form.get('enable_breach_check', 'true').strip().lower()
         if breach_val not in ('false', '0', 'no', 'off'):
-            # New: Use the high-performance HIBP engine
             app.logger.info('Starting HIBP check for %d passwords.', len(passwords))
-            breach_stats = check_bulk_passwords(passwords, app.logger)
-            app.logger.info(
-                'HIBP check complete — %d/%d breached (sampled=%s, n=%d)',
-                breach_stats.get('total_breached', 0),
-                breach_stats.get('total_checked', 0),
-                breach_stats.get('sampled', False),
-                breach_stats.get('sample_size', 0),
-            )
+            breach_stats_raw = check_bulk_passwords(passwords, app.logger)
+
+        # Transform HIBP data into the structure the frontend expects
+        breach_stats = transform_hibp_stats(breach_stats_raw, len(passwords))
 
         risk_data     = calculate_risk_score(dataset_stats, patterns, breach_stats)
         policy_impact = simulate_policy_impact(risk_data.get('score', 0), patterns, dataset_stats)
@@ -394,6 +390,9 @@ def analyze():
                 _RISK_LOW:    _dist.get(_RISK_LOW, 0),
             },
             'patterns':                   patterns,
+            # Expose dataset_stats fields needed by frontend charts
+            'length_distribution':        dataset_stats.get('length_distribution', {}),
+            'character_composition':      dataset_stats.get('character_composition', {}),
             'ai_insights':                ai_insights,
             'attack_scenarios':           attack_scenarios,
             'policy_impact':              policy_impact,
@@ -404,9 +403,8 @@ def analyze():
             'recommendations':            ai_insights,
             'recommended_password_policy': recommended_policy,
             'password_examples':          password_examples,
-            # Both keys so JS (breach_stats) and PDF (breach_statistics) both work
-            'breach_statistics':          breach_stats,
-            'breach_stats':               breach_stats,
+            # Use the transformed HIBP data under a single, consistent key
+            'hibp':                       breach_stats,
         }
 
         app.logger.info(
@@ -610,7 +608,8 @@ def _transform_data_for_pdf(api_data: dict) -> dict:
     risk_score    = overview.get('risk_score', 0)
 
     # Build policy_simulation scores
-    projected = policy_impact.get('projected_improvement', {}).get('projected_score', 0)
+    # Bug 2 fix: policy_simulator returns flat keys current_score/projected_score, not nested
+    projected = policy_impact.get('projected_score', 0)
     policy_simulation = {}
     if projected:
         policy_simulation = {

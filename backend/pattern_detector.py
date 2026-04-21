@@ -175,7 +175,7 @@ def _count_leetspeak(passwords: List[str]) -> int:
         '0': 'o',
         '5': 's', '$': 's',
         '7': 't',
-        '9': 'g',
+        '9': 'g',  # Bug 6 fix: '9' was in leet_chars but '9'→'g' entry was missing — now consistent
     })
     leet_chars = set('@4310!5$79')
 
