@@ -51,8 +51,21 @@
                     </svg>
                 </div>
                 
-                <h2 class="page-title">Check your email</h2>
-                <p class="page-subtitle">We sent a password reset link to<br><span class="masked-email">h***@company.com</span></p>
+                <div class="recovery-card">
+                    <div class="icon-wrap">
+                        <i data-lucide="mail-check"></i>
+                    </div>
+                    <h1 class="page-title">Check your email</h1>
+                    <p class="page-subtitle">We sent a password reset link to<br>
+                        <span class="masked-email" id="maskedEmailDisplay">—</span>
+                    </p>
+
+                    <a href="/login" class="btn btn-secondary recovery-btn" style="margin-top: 2rem;">Back to Login</a>
+
+                    <div class="resend-prompt">
+                        Didn't receive the email? <a href="javascript:void(0)">Click to resend</a>
+                    </div>
+                </div>
 
                 <div class="warning-row">
                     <div class="amber-dot"></div>
@@ -89,6 +102,17 @@
                 timerEl.textContent = `Resend in ${timeLeft}s`;
             }
         }, 1000);
+
+        (function () {
+            const params   = new URLSearchParams(window.location.search);
+            const masked   = params.get('email');
+            const display  = document.getElementById('maskedEmailDisplay');
+            if (display && masked) {
+                display.textContent = decodeURIComponent(masked);
+            } else if (display) {
+                display.textContent = 'your registered email';
+            }
+        })();
     </script>
 </body>
 </html>

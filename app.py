@@ -380,14 +380,12 @@ def analyze():
         response_data = {
             'overview':                   overview,
             'risk_level':                 risk_data.get('risk_level', 'Unknown'),
-            # Both key formats so JS (.high/.medium/.low) and PDF (High Risk/...) both work
+            # BUG-13 FIX: canonical lowercase keys only — no duplicate Title-case keys.
+            # .get() fallback handles both old Title-case and new lowercase from risk_score.py.
             'risk_distribution': {
-                'high':        _dist.get(_RISK_HIGH, 0),
-                'medium':      _dist.get(_RISK_MEDIUM, 0),
-                'low':         _dist.get(_RISK_LOW, 0),
-                _RISK_HIGH:   _dist.get(_RISK_HIGH, 0),
-                _RISK_MEDIUM: _dist.get(_RISK_MEDIUM, 0),
-                _RISK_LOW:    _dist.get(_RISK_LOW, 0),
+                'high':   _dist.get('high', _dist.get(_RISK_HIGH, 0)),
+                'medium': _dist.get('medium', _dist.get(_RISK_MEDIUM, 0)),
+                'low':    _dist.get('low', _dist.get(_RISK_LOW, 0)),
             },
             'patterns':                   patterns,
             # Expose dataset_stats fields needed by frontend charts
@@ -601,53 +599,59 @@ def _build_report_preview(stats, _patterns, risk_data, insights) -> str:
 def _transform_data_for_pdf(api_data: dict) -> dict:
     """
     Flatten the API response structure to the flat format expected by pdf_gen.
+
+    BUG-05 FIX: compliance_mapping now uses the pre-computed compliance_scores
+      dict from compliance_mapper._calculate_compliance_scores() instead of
+      recomputing heuristic multipliers on risk_score.
+
+    BUG-12 FIX: policy_simulation now uses the real improvement_details dict
+      from policy_simulator instead of fabricated projected_score * 0.xx values.
     """
-    overview     = api_data.get('overview', {})
+    overview      = api_data.get('overview', {})
     policy_impact = api_data.get('policy_impact', {})
     compliance    = api_data.get('compliance', {})
     risk_score    = overview.get('risk_score', 0)
 
-    # Build policy_simulation scores
-    # Bug 2 fix: policy_simulator returns flat keys current_score/projected_score, not nested
-    projected = policy_impact.get('projected_score', 0)
-    policy_simulation = {}
-    if projected:
-        policy_simulation = {
-            'minimum_length_12':      projected * 0.95,
-            'dictionary_blocking':    projected * 0.88,
-            'pattern_restrictions':   projected * 0.92,
-            'duplicate_prevention':   projected * 0.85,
-            'complexity_requirements': projected * 0.90,
+    # FIX BUG-12: Use real per-policy gain data already computed by
+    # policy_simulator.simulate_policy_impact() — not heuristic multipliers.
+    improvement_details = policy_impact.get('improvement_details', {})
+    policy_simulation   = improvement_details if improvement_details else {}
+
+    # FIX BUG-05: compliance_mapper already computes numeric scores in
+    # compliance_scores via _calculate_compliance_scores().
+    # Use them directly instead of recomputing with arbitrary factors.
+    compliance_mapping = compliance.get('compliance_scores', {})
+    if not compliance_mapping:
+        # Fallback only if compliance_scores truly absent (shouldn't happen)
+        compliance_mapping = {
+            'NIST SP 800-63B': risk_score,
+            'OWASP':           risk_score,
+            'ISO 27001':       risk_score,
         }
 
-    # Convert text NIST / OWASP statuses to numeric scores for PDF charts
-    nist_score_map = {'Compliant': min(95, risk_score + 10), 'Partial Compliance': risk_score * 0.85, 'Non-Compliant': risk_score * 0.60}
-    owasp_score_map = {'Low': min(95, risk_score + 5), 'Medium': risk_score * 0.90, 'High': risk_score * 0.70, 'Critical': risk_score * 0.50}
-    compliance_mapping = {
-        'NIST SP 800-63B': nist_score_map.get(compliance.get('nist_compliance_status', ''), risk_score),
-        'OWASP':           owasp_score_map.get(compliance.get('owasp_risk_level', ''), risk_score),
-        'ISO 27001':       risk_score * 0.92,
-    }
+    # BUG-13: risk_distribution in api_data now has canonical lowercase keys
+    # ('high', 'medium', 'low') — no Title-case duplicates.
+    risk_dist = api_data.get('risk_distribution', {})
 
     return {
-        'total_passwords':  overview.get('total_passwords', 0),
-        'unique_passwords': overview.get('unique_passwords', 0),
-        'avg_length':       overview.get('average_length', 0),
-        'average_length':   overview.get('average_length', 0),
-        'min_length':       api_data.get('patterns', {}).get('min_length', 0),
-        'max_length':       api_data.get('patterns', {}).get('max_length', 0),
-        'risk_score':       risk_score,
-        'risk_level':       api_data.get('risk_level', 'Unknown'),
-        'patterns':         api_data.get('patterns', {}),
-        'ai_insights':      api_data.get('ai_insights', []),
-        'attack_scenarios': api_data.get('attack_scenarios', []),
-        'policy_impact':    policy_impact,
-        'policy_simulation': policy_simulation,
-        'compliance':        compliance,
-        'compliance_mapping': compliance_mapping,
-        'recommendations':   api_data.get('recommendations', api_data.get('ai_insights', [])),
-        'trends':            api_data.get('trends', []),
-        'risk_distribution': api_data.get('risk_distribution', {}),
+        'total_passwords':    overview.get('total_passwords', 0),
+        'unique_passwords':   overview.get('unique_passwords', 0),
+        'avg_length':         overview.get('average_length', 0),
+        'average_length':     overview.get('average_length', 0),
+        'min_length':         api_data.get('patterns', {}).get('min_length', 0),
+        'max_length':         api_data.get('patterns', {}).get('max_length', 0),
+        'risk_score':         risk_score,
+        'risk_level':         api_data.get('risk_level', 'Unknown'),
+        'patterns':           api_data.get('patterns', {}),
+        'ai_insights':        api_data.get('ai_insights', []),
+        'attack_scenarios':   api_data.get('attack_scenarios', []),
+        'policy_impact':      policy_impact,
+        'policy_simulation':  policy_simulation,    # real data, not fake multipliers
+        'compliance':         compliance,
+        'compliance_mapping': compliance_mapping,   # real computed scores
+        'recommendations':    api_data.get('recommendations', api_data.get('ai_insights', [])),
+        'trends':             api_data.get('trends', []),
+        'risk_distribution':  risk_dist,
     }
 
 

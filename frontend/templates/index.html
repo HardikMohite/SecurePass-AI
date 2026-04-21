@@ -305,7 +305,6 @@
         </div>
         </section><!-- end #page-dashboard -->
 
-        <!-- ═══ PAGE: COMPLIANCE ═══════════════════════════════════════ -->
         <!-- ═══ PAGE: COMPLIANCE ══════════════════════════════════════ -->
         <section id="page-compliance" class="page-section" style="display:none;">
             <div class="panel-header">
@@ -313,6 +312,9 @@
                     <h1 class="panel-title">Compliance <span>Status</span></h1>
                     <p class="panel-subtitle">Your password policy posture against industry standards.</p>
                 </div>
+                <button id="btnRefreshCompliance" class="btn btn-secondary" style="flex-shrink:0;display:none;">
+                    <i data-lucide="refresh-cw" style="width:14px;height:14px;"></i> Re-analyse
+                </button>
             </div>
             <div id="compliancePageContent">
                 <!-- Empty state — replaced by renderCompliance() after analysis -->

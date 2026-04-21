@@ -30,9 +30,24 @@
         setupSettingsNav();
         setupSettingsInteractions();
         setupAIDrawer();
+        setupComplianceRefresh();
         await checkAuth();
         if (window.lucide) lucide.createIcons();
     });
+
+    function setupComplianceRefresh() {
+        const btn = document.getElementById('btnRefreshCompliance');
+        if (!btn) return;
+        btn.addEventListener('click', () => {
+            if (S.results && S.results.compliance) {
+                renderCompliance(S.results.compliance);
+            } else {
+                const cpc = document.getElementById('compliancePageContent');
+                if (cpc) cpc.innerHTML = '<div class="panel-empty-state"><i data-lucide=\"shield-off\"></i><p>No analysis data available.</p><span>Run an analysis from the Dashboard first.</span></div>';
+                if (window.lucide) lucide.createIcons();
+            }
+        });
+    }
 
     /* ══ AUTH ═══════════════════════════════════════════ */
     async function checkAuth() {
@@ -540,48 +555,273 @@
     }
 
     function renderCompliance(compliance) {
-        // Render full compliance detail into the Compliance panel
         const pageContent = $('compliancePageContent');
         if (!pageContent || !compliance) return;
+
+        // ── helpers ──────────────────────────────────────────────────────
+        function statusMeta(status, isOwasp) {
+            const s = (status || '').toLowerCase();
+            const ok  = s === 'compliant' || s === 'low';
+            const mid = s.includes('partial') || s === 'medium';
+            const col = ok ? '#00b86e' : mid ? '#febc2e' : '#ff5f57';
+            const bg  = ok ? 'rgba(0,184,110,0.10)' : mid ? 'rgba(254,188,46,0.10)' : 'rgba(255,95,87,0.10)';
+            const icon = ok ? 'shield-check' : mid ? 'shield-alert' : 'shield-x';
+            return { ok, mid, col, bg, icon };
+        }
+
+        // ── data ──────────────────────────────────────────────────────────
+        const scores   = compliance.compliance_scores   || {};
+        const violations = compliance.violations        || [];
+        const notes      = compliance.compliance_notes  || [];
+
+        const nistStatus = compliance.nist_compliance_status || 'N/A';
+        const owaspStatus = compliance.owasp_risk_level       || 'N/A';
+        const isoStatus   = compliance.iso_compliance_status  || compliance.iso_status || 'N/A';
+
+        const nistScore = Math.round(scores['NIST SP 800-63B'] || 0);
+        const owaspScore = Math.round(scores['OWASP'] || 0);
+        const isoScore   = Math.round(scores['ISO 27001'] || 0);
+
+        const nistMeta = statusMeta(nistStatus);
+        const owaspMeta = statusMeta(owaspStatus, true);
+        const isoMeta   = statusMeta(isoStatus);
+
+        // Overall posture text
+        const allOk = nistMeta.ok && owaspMeta.ok && isoMeta.ok;
+        const allBad = !nistMeta.ok && !nistMeta.mid && !owaspMeta.ok && !owaspMeta.mid && !isoMeta.ok && !isoMeta.mid;
+        const overallText = allOk ? 'Fully Compliant' : allBad ? 'Non-Compliant' : 'Partial Compliance';
+        const overallCol  = allOk ? '#00b86e' : allBad ? '#ff5f57' : '#febc2e';
+
+        // ── build contextual 2-line explanations from real data ───────────
+        function buildExplain(label, status, score) {
+            const s = (status || '').toLowerCase();
+            const ok  = s === 'compliant' || s === 'low';
+            const mid = s.includes('partial') || s === 'medium';
+
+            // Look for a matching note from the backend
+            const matchNote = notes.find(n => n.toLowerCase().includes(label.toLowerCase().split(' ')[0]));
+
+            if (matchNote) return matchNote;
+
+            // Fallback generated explanations
+            if (label === 'NIST SP 800-63B') {
+                if (ok)  return `Your dataset meets NIST SP 800-63B requirements — no banned passwords, acceptable length distribution, and low dictionary exposure (score: ${score}/100).`;
+                if (mid) return `Partial compliance with NIST SP 800-63B — length requirements may be met, but some passwords appear in banned lists or use sequential patterns (§5.1.1). Score: ${score}/100.`;
+                return `Dataset fails NIST SP 800-63B §5.1.1 — significant dictionary-based, keyboard-walk, or sequential passwords detected. Immediate remediation required. Score: ${score}/100.`;
+            }
+            if (label === 'OWASP Top 10') {
+                if (ok)  return `Authentication risk is within OWASP A07:2021 acceptable parameters — predictable patterns are minimal and password entropy is sufficient. Score: ${score}/100.`;
+                if (mid) return `OWASP A07:2021 moderate risk — some predictable patterns (keyboard walks, name-based) increase susceptibility to credential-stuffing attacks. Score: ${score}/100.`;
+                return `High OWASP A07:2021 authentication risk — widespread predictable patterns detected. Users are vulnerable to automated credential-stuffing and dictionary attacks. Score: ${score}/100.`;
+            }
+            if (label.includes('27001')) {
+                if (ok)  return `ISO/IEC 27001:2022 Annex A.9.4 access-control requirements are met — password quality policy is enforced and complexity violations are minimal. Score: ${score}/100.`;
+                if (mid) return `Partial ISO/IEC 27001 A.9.4 compliance — capitalization misuse or leetspeak substitutions indicate inadequate password complexity enforcement. Score: ${score}/100.`;
+                return `ISO/IEC 27001 A.9.4 non-compliant — overall password quality (score: ${score}/100) falls below the minimum threshold required for access-control certification.`;
+            }
+            return `Compliance score: ${score}/100.`;
+        }
+
+        // ── severity helpers ───────────────────────────────────────────────
+        function sevColor(sev) {
+            const s = (sev||'').toLowerCase();
+            if (s === 'critical') return '#ff5f57';
+            if (s === 'high')    return '#ff8c42';
+            if (s === 'medium')  return '#febc2e';
+            return '#7a8a9a';
+        }
+
+        // ── render ─────────────────────────────────────────────────────────
         const items = [
-            { label: 'NIST SP 800-63B', status: compliance.nist_compliance_status || 'N/A', desc: 'Digital identity guidelines for password length and complexity.' },
-            { label: 'OWASP Top 10',    status: compliance.owasp_risk_level        || 'N/A', desc: 'Web application security risk classification.' },
-            { label: 'ISO/IEC 27001',   status: compliance.iso_compliance_status   || compliance.iso_status || 'N/A', desc: 'Information security management systems standard.' },
+            { label: 'NIST SP 800-63B', status: nistStatus,  score: nistScore,  meta: nistMeta,
+              desc: 'Digital identity guidelines — password length, complexity & banned-password lists.',
+              spec: 'NIST SP 800-63B §5.1.1' },
+            { label: 'OWASP Top 10',    status: owaspStatus, score: owaspScore, meta: owaspMeta,
+              desc: 'Web application authentication risk classification (A07:2021 — Identification & Authentication Failures).',
+              spec: 'OWASP A07:2021' },
+            { label: 'ISO/IEC 27001',   status: isoStatus,   score: isoScore,   meta: isoMeta,
+              desc: 'Information security management standard — Annex A.9.4 system & application access control.',
+              spec: 'ISO/IEC 27001:2022 A.9.4' },
         ];
+
         pageContent.innerHTML = `
+            <!-- Summary bar -->
+            <div class="compliance-summary-bar">
+                <div class="compliance-summary-metric" style="--metric-color:${overallCol};--metric-bg:${overallCol}1a;">
+                    <div class="compliance-summary-icon">
+                        <i data-lucide="${allOk ? 'shield-check' : allBad ? 'shield-x' : 'shield-alert'}"></i>
+                    </div>
+                    <div>
+                        <div class="compliance-summary-label">Overall Posture</div>
+                        <div class="compliance-summary-value">${esc(overallText)}</div>
+                    </div>
+                </div>
+                <div class="compliance-summary-metric" style="--metric-color:#ff5f57;--metric-bg:rgba(255,95,87,0.10);">
+                    <div class="compliance-summary-icon">
+                        <i data-lucide="alert-triangle"></i>
+                    </div>
+                    <div>
+                        <div class="compliance-summary-label">Active Violations</div>
+                        <div class="compliance-summary-value">${violations.length} issue${violations.length !== 1 ? 's' : ''}</div>
+                    </div>
+                </div>
+                <div class="compliance-summary-metric" style="--metric-color:var(--accent);--metric-bg:rgba(0,229,255,0.08);">
+                    <div class="compliance-summary-icon">
+                        <i data-lucide="bar-chart-2"></i>
+                    </div>
+                    <div>
+                        <div class="compliance-summary-label">Avg Score</div>
+                        <div class="compliance-summary-value">${Math.round((nistScore + owaspScore + isoScore) / 3)}<span style="font-size:0.75rem;font-weight:400;color:var(--text-muted)">/100</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3 standard cards -->
             <div class="compliance-panel-grid">
-            ${items.map(item => {
-                const s = (item.status || '').toLowerCase();
-                const ok  = s === 'compliant' || s === 'low';
-                const mid = s.includes('partial') || s === 'medium';
-                const bg  = ok ? 'rgba(0,184,110,0.10)' : mid ? 'rgba(254,188,46,0.10)' : 'rgba(255,95,87,0.10)';
-                const col = ok ? '#00b86e' : mid ? '#febc2e' : '#ff5f57';
-                const icon = ok ? 'shield-check' : mid ? 'shield-alert' : 'shield-x';
-                return `<div class="compliance-panel-card" style="border-top-color:${col};">
+            ${items.map(item => `
+                <div class="compliance-panel-card" style="border-top-color:${item.meta.col};--card-color:${item.meta.col};">
                     <div class="compliance-panel-card-top">
-                        <i data-lucide="${icon}" style="width:22px;height:22px;color:${col};flex-shrink:0;"></i>
-                        <div>
+                        <div class="compliance-panel-card-icon" style="background:${item.meta.bg};">
+                            <i data-lucide="${item.meta.icon}" style="color:${item.meta.col};"></i>
+                        </div>
+                        <div style="flex:1;min-width:0;">
                             <div class="compliance-panel-card-name">${esc(item.label)}</div>
                             <div class="compliance-panel-card-desc">${esc(item.desc)}</div>
                         </div>
-                        <span class="status-pill" style="background:${bg};color:${col};margin-left:auto;flex-shrink:0;">${esc(item.status)}</span>
+                        <span class="status-pill" style="background:${item.meta.bg};color:${item.meta.col};margin-left:8px;flex-shrink:0;font-size:10px;">${esc(item.status)}</span>
                     </div>
-                </div>`;
-            }).join('')}
-            </div>`;
-        // Also update hidden complianceWrap for legacy JS-compat references
+                    <div class="compliance-score-bar-wrap">
+                        <div class="compliance-score-bar-header">
+                            <span>${esc(item.spec)}</span>
+                            <strong>${item.score}<span style="font-size:0.75rem;font-weight:400;color:var(--text-muted)">/100</span></strong>
+                        </div>
+                        <div class="compliance-score-track">
+                            <div class="compliance-score-fill" data-target="${item.score}" style="background:${item.meta.col};"></div>
+                        </div>
+                    </div>
+                    <div class="compliance-card-explain" style="--card-color:${item.meta.col};">
+                        ${esc(buildExplain(item.label, item.status, item.score))}
+                    </div>
+                </div>`).join('')}
+            </div>
+
+            <!-- AI Analysis -->
+            <div class="compliance-section-heading"><i data-lucide="sparkles" style="width:14px;height:14px;color:var(--accent);"></i>AI Compliance Analysis</div>
+            <div class="compliance-ai-block" id="complianceAIBlock">
+                <div class="compliance-ai-block-header">
+                    <i data-lucide="bot" style="width:18px;height:18px;color:var(--accent);"></i>
+                    <span class="compliance-ai-block-title">AI Security Assessment</span>
+                    <span class="compliance-ai-badge">Claude AI</span>
+                </div>
+                <div id="complianceAIText" class="compliance-ai-loading">
+                    <div class="compliance-ai-dot-pulse"><span></span><span></span><span></span></div>
+                    Generating compliance analysis…
+                </div>
+            </div>
+
+            <!-- Violations -->
+            <div class="compliance-section-heading"><i data-lucide="alert-circle" style="width:14px;height:14px;color:#ff5f57;"></i>Violations &amp; Findings</div>
+            <div class="compliance-violations-list">
+            ${violations.length === 0
+                ? `<div class="compliance-no-violations"><i data-lucide="check-circle-2" style="width:18px;height:18px;flex-shrink:0;"></i>No violations detected — all standards are within acceptable thresholds.</div>`
+                : violations.map((v, i) => `
+                    <div class="compliance-violation-item" style="animation-delay:${i * 60}ms;">
+                        <div class="compliance-violation-dot" style="background:${sevColor(v.severity)};"></div>
+                        <div style="flex:1;min-width:0;">
+                            <div class="compliance-violation-rule">${esc(v.rule || 'Policy Violation')}</div>
+                            <div class="compliance-violation-desc">${esc(v.description || '')}</div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
+                            <span class="compliance-violation-badge" style="background:${sevColor(v.severity)}1a;color:${sevColor(v.severity)};">${esc(v.severity || '')}</span>
+                            <span style="font-size:10px;color:var(--text-muted);">${esc(v.standard || '')}</span>
+                        </div>
+                    </div>`).join('')}
+            </div>
+
+            <!-- Notes -->
+            ${notes.length > 0 ? `
+            <div class="compliance-section-heading"><i data-lucide="file-text" style="width:14px;height:14px;color:var(--text-muted);"></i>Compliance Notes</div>
+            <ul class="compliance-notes-list" style="margin-bottom:24px;">
+                ${notes.map(n => `<li>${esc(n)}</li>`).join('')}
+            </ul>` : ''}
+        `;
+
+        // Animate score bars after render
+        setTimeout(() => {
+            pageContent.querySelectorAll('.compliance-score-fill').forEach(bar => {
+                bar.style.width = (bar.dataset.target || 0) + '%';
+            });
+        }, 120);
+
+        // Legacy wrap
         const wrap = $('complianceWrap');
         if (wrap) {
             wrap.style.display = 'block';
             wrap.innerHTML = items.map(item => {
-                const s = (item.status||'').toLowerCase(), ok = s==='compliant'||s==='low', mid = s.includes('partial')||s==='medium';
-                const bg = ok?'rgba(0,184,110,0.12)':mid?'rgba(254,188,46,0.12)':'rgba(255,95,87,0.12)', col = ok?'#00b86e':mid?'#febc2e':'#ff5f57';
-                return `<div class="compliance-row"><span style="font-size:13px">${esc(item.label)}</span><span class="status-pill" style="background:${bg};color:${col}">${esc(item.status)}</span></div>`;
+                return `<div class="compliance-row"><span style="font-size:13px">${esc(item.label)}</span><span class="status-pill" style="background:${item.meta.bg};color:${item.meta.col}">${esc(item.status)}</span></div>`;
             }).join('');
         }
-        const sec=$('complianceSection'), pill=$('pillCompliance');
-        if (sec) sec.style.display='block'; if (pill) { pill.textContent='On'; pill.style.color='var(--accent)'; }
+
+        const sec = $('complianceSection'), pill = $('pillCompliance');
+        if (sec) sec.style.display = 'block';
+        if (pill) { pill.textContent = 'On'; pill.style.color = 'var(--accent)'; }
         if (window.lucide) lucide.createIcons();
+
+        // Re-analyse button
+        const refBtn = $('btnRefreshCompliance');
+        if (refBtn) refBtn.style.display = 'flex';
+
+        // Trigger AI analysis
+        _fetchComplianceAI(compliance, items);
+    }
+
+    async function _fetchComplianceAI(compliance, items) {
+        const textEl = $('complianceAIText');
+        if (!textEl) return;
+
+        const scores   = compliance.compliance_scores   || {};
+        const violations = compliance.violations        || [];
+        const nistScore = Math.round(scores['NIST SP 800-63B'] || 0);
+        const owaspScore = Math.round(scores['OWASP'] || 0);
+        const isoScore   = Math.round(scores['ISO 27001'] || 0);
+
+        const prompt = `You are a cybersecurity compliance expert. A password dataset was analysed. Provide a concise 3-4 sentence professional compliance narrative for a security dashboard.
+
+Dataset compliance results:
+- NIST SP 800-63B: ${compliance.nist_compliance_status} (score: ${nistScore}/100)
+- OWASP Top 10 (A07:2021): ${compliance.owasp_risk_level} risk (score: ${owaspScore}/100)
+- ISO/IEC 27001 A.9.4: ${compliance.iso_compliance_status} (score: ${isoScore}/100)
+- Active violations: ${violations.length}
+${violations.length > 0 ? '- Key violations: ' + violations.slice(0,3).map(v => v.rule + ' (' + v.severity + ')').join(', ') : '- No violations detected'}
+
+Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard most affected, 3) one specific remediation action, 4) business impact if not addressed. Be specific, cite standards by name. No bullet points, no headers. Professional tone.`;
+
+        try {
+            const resp = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: 'claude-sonnet-4-20250514',
+                    max_tokens: 1000,
+                    messages: [{ role: 'user', content: prompt }]
+                })
+            });
+            const data = await resp.json();
+            const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+            if (text && textEl) {
+                textEl.className = 'compliance-ai-text';
+                textEl.textContent = text;
+            }
+        } catch (e) {
+            if (textEl) {
+                textEl.className = 'compliance-ai-text';
+                // Fallback from notes if API fails
+                const notes = compliance.compliance_notes || [];
+                textEl.textContent = notes.length > 0
+                    ? notes.slice(0, 3).join(' ')
+                    : 'AI analysis unavailable. Review the violations and notes above for actionable remediation steps.';
+            }
+        }
     }
 
     function renderAttackScenarios(attacks) {
