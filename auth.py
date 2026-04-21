@@ -260,3 +260,24 @@ def get_user_history():
     except Exception:
         logger.exception('Failed to retrieve user history')
         return jsonify({'error': 'Could not retrieve analysis history.'}), 500
+
+@auth_bp.route('/history', methods=['DELETE'])
+@login_required
+def clear_user_history():
+    """
+    Permanently delete all analysis records for the current user.
+
+    Returns 200 with { deleted: N } on success, 500 on error.
+    """
+    try:
+        deleted = Analysis.query.filter_by(user_id=current_user.id).delete()
+        db.session.commit()
+        logger.info('User %d cleared %d analysis records.', current_user.id, deleted)
+        return jsonify({
+            'message': f'History cleared. {deleted} report(s) deleted.',
+            'deleted': deleted,
+        }), 200
+    except Exception:
+        db.session.rollback()
+        logger.exception('Failed to clear user history')
+        return jsonify({'error': 'Could not clear history. Please try again.'}), 500

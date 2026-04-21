@@ -124,6 +124,7 @@
                 // because click listeners capture the LOCAL showPage variable
                 // via closure — overriding window.showPage has no effect on them.
                 if (page === 'ai-policy') initAIPolicyPage();
+                if (page === 'reports' && window.Reports) Reports.loadPage();
             });
         });
 
@@ -132,6 +133,7 @@
         window.showPage = function(name) {
             showPage(name);
             if (name === 'ai-policy') initAIPolicyPage();
+            if (name === 'reports' && window.Reports) Reports.loadPage();
         };
     }
 
@@ -1636,9 +1638,8 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
 
     /* ══ REPORTS PAGE DOWNLOAD ══════════════════════════ */
     function setupReportsDownload() {
-        // Wire the Reports panel Download button to the same downloadReport() fn
-        const btn=$('downloadBtnReports');
-        if (btn) btn.addEventListener('click', downloadReport);
+        // NOTE: The full Reports page wiring is handled by reports.js (Feature 6).
+        // The header download button is wired there too; nothing to do here.
     }
 
 

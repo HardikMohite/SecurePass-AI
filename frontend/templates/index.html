@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SecurePass AI | Password Security Audit Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/reports.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/hibp.css') }}">
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -547,15 +548,26 @@
         </section><!-- end #page-ai-policy -->
 
         <!-- ═══ PAGE: REPORTS ═════════════════════════════════════════ -->
+        <!-- ═══ PAGE: REPORTS ═════════════════════════════════════════ -->
         <section id="page-reports" class="page-section" style="display:none;">
             <div class="panel-header">
                 <div>
                     <h1 class="panel-title">Security <span>Reports</span></h1>
-                    <p class="panel-subtitle">Download and review your security audit reports.</p>
+                    <p class="panel-subtitle">History of all your password security audits. Click any row to preview inline, or download a full PDF.</p>
                 </div>
-                <button id="downloadBtnReports" class="btn btn-report" style="flex-shrink:0;">
-                    <i data-lucide="download" style="width:15px;height:15px;"></i> Download PDF Report
-                </button>
+                <div style="display:flex;gap:10px;align-items:center;flex-shrink:0;flex-wrap:wrap;">
+                    <button class="rpt-dl-btn" title="Refresh list" onclick="Reports.loadPage(true)" style="padding:8px 14px;">
+                        <i data-lucide="refresh-cw" style="width:14px;height:14px;"></i>
+                        <span>Refresh</span>
+                    </button>
+                    <button id="rptClearBtn" class="rpt-dl-btn rpt-clear-btn" title="Delete all reports">
+                        <i data-lucide="trash-2" style="width:14px;height:14px;"></i>
+                        <span>Clear History</span>
+                    </button>
+                    <button id="downloadBtnReports" class="btn btn-report" style="flex-shrink:0;">
+                        <i data-lucide="download" style="width:15px;height:15px;"></i> Download Selected
+                    </button>
+                </div>
             </div>
             <div id="reportsPageContent">
                 <div class="panel-empty-state">
@@ -1619,6 +1631,7 @@
     <script src="{{ url_for('static', filename='js/auth.js') }}"></script>
     <script src="{{ url_for('static', filename='js/hibp.js') }}"></script>
     <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/reports.js') }}"></script>
 
     <script>
         // Initialize Lucide Icons
@@ -1634,5 +1647,29 @@
             }
         });
     </script>
+    <!-- ═══ REPORTS: Clear History Confirmation Modal ════════════════ -->
+    <div id="rptClearModal" class="rpt-modal" role="dialog" aria-modal="true" aria-labelledby="rptClearModalTitle">
+        <div class="rpt-modal-box">
+            <div class="rpt-modal-icon">
+                <i data-lucide="trash-2"></i>
+            </div>
+            <h3 id="rptClearModalTitle" class="rpt-modal-title">Clear All Reports?</h3>
+            <p class="rpt-modal-body">
+                This will permanently delete <strong>all your analysis history</strong>.
+                Charts, insights, and PDF data cannot be recovered after deletion.
+            </p>
+            <div class="rpt-modal-actions">
+                <button id="rptClearCancelBtn" class="rpt-modal-btn rpt-modal-btn--cancel"
+                        onclick="Reports.hideClearModal()">
+                    Cancel
+                </button>
+                <button id="rptClearConfirmBtn" class="rpt-modal-btn rpt-modal-btn--danger"
+                        onclick="Reports.confirmClearHistory()">
+                    Yes, Delete All
+                </button>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>
