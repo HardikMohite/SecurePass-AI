@@ -50,10 +50,13 @@ def generate_insights(
         policy_recommendations, recommended_password_policy
     Always returns something — falls back to rule-based output on any error.
     """
-    api_key = os.environ.get('SECUREPASS_GROQ_API_KEY', '').strip()
+    api_key = (
+        os.environ.get('SECUREPASS_GROQ_API_KEY', '').strip()
+        or os.environ.get('GROQ_API_KEY', '').strip()
+    )
 
     if not api_key:
-        logger.warning('SECUREPASS_GROQ_API_KEY not set — using fallback insights.')
+        logger.warning('SECUREPASS_GROQ_API_KEY / GROQ_API_KEY not set — using fallback insights.')
         return _fallback_insights(dataset_stats, pattern_stats, risk_data)
 
     if not _validate_inputs(dataset_stats, pattern_stats, risk_data):

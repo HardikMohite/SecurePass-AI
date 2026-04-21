@@ -164,13 +164,15 @@ class Analysis(db.Model):
 
     def to_dict(self) -> dict:
         """Full representation including the analysis payload."""
+        ts = self.created_at.isoformat() if self.created_at else None
         return {
             'id':               self.id,
             'filename':         self.filename,
             'total_passwords':  self.total_passwords,
             'risk_score':       self.risk_score,
             'risk_level':       self.risk_level,
-            'created_at':       self.created_at.isoformat(),
+            'created_at':       ts,
+            'timestamp':        ts,   # alias for backwards compatibility
             'analysis_data':    self.analysis_data,
         }
 
@@ -179,13 +181,15 @@ class Analysis(db.Model):
         Lightweight representation — omits the heavy analysis_data blob.
         Use this in list/history endpoints to avoid transferring large payloads.
         """
+        ts = self.created_at.isoformat() if self.created_at else None
         return {
             'id':              self.id,
             'filename':        self.filename,
             'total_passwords': self.total_passwords,
             'risk_score':      self.risk_score,
             'risk_level':      self.risk_level,
-            'created_at':      self.created_at.isoformat(),
+            'created_at':      ts,
+            'timestamp':       ts,   # alias for backwards compatibility
         }
 
     def __repr__(self) -> str:

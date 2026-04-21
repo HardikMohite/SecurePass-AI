@@ -3608,3 +3608,131 @@ svg.score-ring {
     min-width: 0;
     overflow: hidden;
 }
+/* ── AI Policy Page ─────────────────────────────────────────── */
+.aip-spinner {
+    width: 40px; height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: aipSpin 0.8s linear infinite;
+    margin: 0 auto;
+}
+@keyframes aipSpin { to { transform: rotate(360deg); } }
+
+.aip-compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 110px 1fr;
+    gap: 1rem;
+    align-items: center;
+    margin-bottom: 0;
+}
+
+.aip-before-card { border-top-color: #febc2e !important; }
+.aip-after-card  { border-top-color: #00b86e !important; }
+.aip-summary-card { border-top-color: var(--accent) !important; }
+
+.aip-score-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    margin: 1rem 0;
+    padding: 1rem 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+.aip-score-block { text-align: center; }
+.aip-score-num {
+    font-family: var(--font-mono);
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1;
+}
+.aip-score-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 4px;
+}
+.aip-stat-rows { display: flex; flex-direction: column; gap: 8px; margin-top: 0.75rem; }
+.aip-stat-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+.aip-delta-col { display: flex; justify-content: center; }
+.aip-delta-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 1rem 0.5rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    width: 100%;
+}
+.aip-delta-item { text-align: center; }
+.aip-delta-val {
+    font-family: var(--font-mono);
+    font-size: 1.3rem;
+    font-weight: 700;
+    display: block;
+    line-height: 1;
+}
+.aip-delta-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.aip-bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+}
+
+.aip-pw-list { display: flex; flex-direction: column; gap: 8px; }
+.aip-pw-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 9px 14px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text);
+}
+.aip-pw-item:hover { border-color: var(--accent); background: rgba(0,212,255,0.04); }
+.aip-pw-copy { opacity: 0; transition: opacity 0.15s; font-size: 11px; color: var(--accent); font-family: var(--font-body, inherit); }
+.aip-pw-item:hover .aip-pw-copy { opacity: 1; }
+.aip-pw-item.aip-copied { border-color: #00b86e; background: rgba(0,184,110,0.05); }
+
+.aip-rules-list { display: flex; flex-direction: column; }
+.aip-rule-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text);
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+}
+.aip-rule-item:last-child { border-bottom: none; }
+.aip-rule-icon {
+    width: 26px; height: 26px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    background: rgba(0,212,255,0.08);
+    color: var(--accent);
+}

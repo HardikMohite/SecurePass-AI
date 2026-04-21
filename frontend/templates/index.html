@@ -296,8 +296,10 @@
                 <div id="scoreWrapper"></div>
                 <div id="resetAction"></div>
                 <div id="simulationSection">
-                    <div id="attackTerminal"><div id="attackResults"></div></div>
-                    <button id="btnRunSim"></button>
+                    <!-- IDs attackTerminal, attackResults, btnRunSim, openAIDrawer
+                         REMOVED from this stub — they live in the real terminal panel.
+                         Duplicate IDs cause getElementById to return the hidden element,
+                         making all terminal click events fire on a hidden node. -->
                     <button id="openAIDrawer"></button>
                 </div>
             </div>
@@ -333,26 +335,95 @@
             <div class="panel-header">
                 <div>
                     <h1 class="panel-title">Attack <span>Terminal</span></h1>
-                    <p class="panel-subtitle">Simulated attack environment against your loaded dataset.</p>
+                    <p class="panel-subtitle">Real dictionary, pattern &amp; brute-force attacks against your passwords.</p>
                 </div>
                 <button id="btnRunSim" class="btn btn-primary" style="flex-shrink:0;">
                     <i data-lucide="zap" style="width:15px;height:15px;"></i> Execute Simulation
                 </button>
             </div>
-            <div id="terminalPageContent">
-                <div class="card terminal-card" style="margin-bottom:0;">
-                    <div class="terminal-header">
-                        <div class="dot dot-red"></div><div class="dot dot-yellow"></div><div class="dot dot-green"></div>
-                        <span style="font-size:11px;color:var(--text-muted);margin-left:8px;">Audit Simulation Lab v4.0 — <span style="color:var(--accent);">Attack Vector Engine</span></span>
+
+            <!-- ── Control Panel ─────────────────────────────────────── -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+
+                <!-- Single Password Check -->
+                <div class="card" style="padding:16px 18px;">
+                    <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">
+                        <i data-lucide="crosshair" style="width:12px;height:12px;vertical-align:middle;margin-right:4px;"></i>Single Password Attack
                     </div>
-                    <div id="attackTerminal" class="terminal-body" style="min-height:420px;">
-                        <div><span class="terminal-prompt">$</span>exec br_force --profile generic</div>
-                        <div class="log-dim">[SYSTEM] Initialized attack environment. Run an analysis from the Dashboard to load target data.</div>
-                        <div id="attackResults"></div>
-                        <div class="terminal-cursor-line"><span class="terminal-prompt">$</span><span class="blinking-cursor">_</span></div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <input id="termSinglePw" type="password" placeholder="Enter a password to test…"
+                            style="flex:1;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-family:var(--font-mono);font-size:13px;color:var(--text-primary);outline:none;">
+                        <button id="termSingleEye" style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px;">
+                            <i data-lucide="eye" style="width:15px;height:15px;"></i>
+                        </button>
+                        <button id="termSingleFire" class="btn btn-ghost" style="white-space:nowrap;font-size:12px;padding:7px 12px;">
+                            <i data-lucide="flame" style="width:13px;height:13px;"></i> Attack
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Attack Config -->
+                <div class="card" style="padding:16px 18px;">
+                    <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">
+                        <i data-lucide="sliders" style="width:12px;height:12px;vertical-align:middle;margin-right:4px;"></i>Attack Configuration
+                    </div>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                        <select id="termAttackType"
+                            style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:6px;padding:7px 10px;font-size:12px;color:var(--text-primary);flex:1;min-width:130px;">
+                            <option value="all">All Attacks</option>
+                            <option value="dictionary">Dictionary Only</option>
+                            <option value="keyboard">Keyboard Walk</option>
+                            <option value="pattern">Pattern Attack</option>
+                            <option value="brute">Brute Force Est.</option>
+                        </select>
+                        <label class="btn btn-ghost" style="cursor:pointer;font-size:12px;padding:7px 12px;white-space:nowrap;" title="Upload custom wordlist (.txt)">
+                            <i data-lucide="upload" style="width:13px;height:13px;"></i>
+                            <span id="termWlLabel">Wordlist</span>
+                            <input id="termWlFile" type="file" accept=".txt" style="display:none;">
+                        </label>
                     </div>
                 </div>
             </div>
+
+            <!-- ── Terminal Window ──────────────────────────────────── -->
+            <div class="card terminal-card" style="margin-bottom:14px;">
+                <div class="terminal-header">
+                    <div class="dot dot-red"></div><div class="dot dot-yellow"></div><div class="dot dot-green"></div>
+                    <span style="font-size:11px;color:var(--text-muted);margin-left:8px;">
+                        Audit Simulation Lab v4.0 — <span style="color:var(--accent);">Attack Vector Engine</span>
+                    </span>
+                    <button id="termClearBtn" style="margin-left:auto;background:none;border:none;font-size:10px;color:var(--text-muted);cursor:pointer;padding:2px 6px;border-radius:4px;" title="Clear terminal">
+                        clear
+                    </button>
+                </div>
+                <div id="attackTerminal" class="terminal-body" style="min-height:440px;max-height:560px;overflow-y:auto;font-family:var(--font-mono);font-size:12.5px;line-height:1.7;">
+                    <div><span class="terminal-prompt">$</span> exec securepass --mode attack-vector --profile generic</div>
+                    <div class="log-dim">[SYSTEM] Attack Vector Engine ready. Enter a password above or run the dataset simulation.</div>
+                    <div id="attackResults"></div>
+                    <div class="terminal-cursor-line" id="termCursorLine"><span class="terminal-prompt">$</span><span class="blinking-cursor">_</span></div>
+                </div>
+            </div>
+
+            <!-- ── Stats Bar ─────────────────────────────────────────── -->
+            <div id="termStatsBar" style="display:none;grid-template-columns:repeat(4,1fr);gap:10px;">
+                <div class="card" style="padding:12px 16px;text-align:center;">
+                    <div id="termStatTotal" style="font-size:1.4rem;font-weight:700;font-family:var(--font-mono);color:var(--text-primary);">—</div>
+                    <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Tested</div>
+                </div>
+                <div class="card" style="padding:12px 16px;text-align:center;">
+                    <div id="termStatCracked" style="font-size:1.4rem;font-weight:700;font-family:var(--font-mono);color:#ff5f57;">—</div>
+                    <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Cracked</div>
+                </div>
+                <div class="card" style="padding:12px 16px;text-align:center;">
+                    <div id="termStatRate" style="font-size:1.4rem;font-weight:700;font-family:var(--font-mono);color:#febc2e;">—</div>
+                    <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Crack Rate</div>
+                </div>
+                <div class="card" style="padding:12px 16px;text-align:center;">
+                    <div id="termStatTime" style="font-size:1.4rem;font-weight:700;font-family:var(--font-mono);color:var(--accent);">—</div>
+                    <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.05em;">Time (s)</div>
+                </div>
+            </div>
+
         </section><!-- end #page-terminal -->
 
         <!-- ═══ PAGE: AI POLICY ═══════════════════════════════════════ -->
@@ -362,18 +433,116 @@
                     <h1 class="panel-title">AI <span>Policy</span></h1>
                     <p class="panel-subtitle">Intelligent password policies and projected impact for your organisation.</p>
                 </div>
-                <button id="openAIDrawer" class="btn btn-ghost" style="flex-shrink:0;">
-                    <i data-lucide="sparkles" style="width:15px;height:15px;"></i> AI Insights
+                <button id="aipApplyBtn" class="btn btn-primary" style="flex-shrink:0;display:none;">
+                    <i data-lucide="sparkles" style="width:15px;height:15px;"></i> Apply Protective Measures
                 </button>
             </div>
-            <div id="aiPolicyPageContent">
-                <div class="panel-empty-state">
-                    <i data-lucide="sparkles"></i>
-                    <p>No analysis data yet.</p>
-                    <span>Upload a password file from the Dashboard to generate AI-powered policy recommendations.</span>
-                </div>
+
+            <!-- Empty state -->
+            <div id="aipEmpty" class="panel-empty-state">
+                <i data-lucide="sparkles"></i>
+                <p>No analysis data yet.</p>
+                <span>Upload a password file from the Dashboard to generate AI-powered policy recommendations.</span>
             </div>
-            <!-- policySection injected here by renderPolicyImpact() -->
+
+            <!-- Main content shown after analysis -->
+            <div id="aipContent" style="display:none;">
+
+                <!-- Loading -->
+                <div id="aipLoading" style="display:none;text-align:center;padding:3rem 0;">
+                    <div class="aip-spinner"></div>
+                    <p id="aipLoadingText" style="color:var(--text-muted);font-size:0.9rem;margin-top:1rem;">Generating AI policy recommendations...</p>
+                </div>
+
+                <!-- Before vs After -->
+                <div class="aip-compare-grid" id="aipCompareGrid">
+                    <div class="card aip-before-card">
+                        <div class="card-header">
+                            <i data-lucide="alert-triangle" style="color:#febc2e;width:16px;height:16px;"></i>
+                            <span>Current State</span>
+                            <span id="aipBeforeRiskBadge" class="status-pill" style="margin-left:auto;background:rgba(255,95,87,0.15);color:#ff5f57;">&#x2014;</span>
+                        </div>
+                        <div class="aip-score-row">
+                            <div class="aip-score-block"><div class="aip-score-num" id="aipBeforeScore">&#x2014;</div><div class="aip-score-label">Risk Score</div></div>
+                            <div class="aip-score-block"><div class="aip-score-num" id="aipBeforeBreaches" style="color:#ff5f57;">&#x2014;</div><div class="aip-score-label">Breached</div></div>
+                            <div class="aip-score-block"><div class="aip-score-num" id="aipBeforeWeak" style="color:#febc2e;">&#x2014;</div><div class="aip-score-label">Weak PWs</div></div>
+                        </div>
+                        <div class="aip-stat-rows">
+                            <div class="aip-stat-row"><span>Compliance</span><span id="aipBeforeCompliance" class="status-pill" style="font-size:11px;">&#x2014;</span></div>
+                            <div class="aip-stat-row"><span>Avg Length</span><span id="aipBeforeLength" style="font-family:var(--font-mono);font-size:13px;">&#x2014;</span></div>
+                            <div class="aip-stat-row"><span>Reuse Rate</span><span id="aipBeforeReuse" style="font-family:var(--font-mono);font-size:13px;color:#febc2e;">&#x2014;</span></div>
+                        </div>
+                    </div>
+
+                    <div class="aip-delta-col">
+                        <div class="aip-delta-card">
+                            <i data-lucide="arrow-right" style="width:20px;height:20px;color:var(--accent);"></i>
+                            <div class="aip-delta-item">
+                                <span class="aip-delta-val" id="aipDeltaScore" style="color:#00b86e;">+0</span>
+                                <span class="aip-delta-label">pts gain</span>
+                            </div>
+                            <div class="aip-delta-item">
+                                <span class="aip-delta-val" id="aipDeltaBreaches" style="color:#00b86e;font-size:1rem;">0</span>
+                                <span class="aip-delta-label">fewer breaches</span>
+                            </div>
+                            <div id="aipComplianceUpgrade" style="display:none;align-items:center;gap:4px;font-size:11px;color:#00b86e;font-weight:600;">
+                                <i data-lucide="shield-check" style="width:13px;height:13px;"></i> Compliance upgrade
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card aip-after-card">
+                        <div class="card-header">
+                            <i data-lucide="shield-check" style="color:#00b86e;width:16px;height:16px;"></i>
+                            <span>After Policy</span>
+                            <span id="aipAfterRiskBadge" class="status-pill" style="margin-left:auto;background:rgba(0,184,110,0.15);color:#00b86e;">&#x2014;</span>
+                        </div>
+                        <div class="aip-score-row">
+                            <div class="aip-score-block"><div class="aip-score-num" id="aipAfterScore" style="color:#00b86e;">&#x2014;</div><div class="aip-score-label">Risk Score</div></div>
+                            <div class="aip-score-block"><div class="aip-score-num" id="aipAfterBreaches" style="color:#00b86e;">&#x2014;</div><div class="aip-score-label">Breached</div></div>
+                            <div class="aip-score-block"><div class="aip-score-num" id="aipAfterCompliance" style="color:#00b86e;font-size:1rem;">&#x2014;</div><div class="aip-score-label">Compliance</div></div>
+                        </div>
+                        <div class="aip-stat-rows">
+                            <div class="aip-stat-row"><span>Min Length</span><span style="font-family:var(--font-mono);font-size:13px;color:#00b86e;">12+ chars</span></div>
+                            <div class="aip-stat-row"><span>MFA Required</span><span class="status-pill" style="background:rgba(0,184,110,0.12);color:#00b86e;font-size:11px;">Enabled</span></div>
+                            <div class="aip-stat-row"><span>Rotation</span><span style="font-family:var(--font-mono);font-size:13px;color:#00b86e;">Every 90d</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Summary -->
+                <div class="card aip-summary-card" id="aipSummaryCard" style="display:none;margin-top:1.25rem;">
+                    <div class="card-header">
+                        <div class="pulse-icon" style="width:26px;height:26px;flex-shrink:0;"><i data-lucide="sparkles" style="width:13px;height:13px;"></i></div>
+                        <span>AI Security Assessment</span>
+                        <span class="status-pill" style="margin-left:auto;background:rgba(0,212,255,0.1);color:var(--accent);font-size:10px;letter-spacing:0.05em;">GROQ &middot; LLAMA 3.3</span>
+                    </div>
+                    <p id="aipSummaryText" style="font-size:0.875rem;line-height:1.75;color:var(--text);margin-top:0.875rem;"></p>
+                </div>
+
+                <!-- Passwords + Policy -->
+                <div class="aip-bottom-grid" style="margin-top:1.25rem;">
+                    <div class="card">
+                        <div class="card-header">
+                            <i data-lucide="key" style="width:16px;height:16px;"></i>
+                            <span>Memorable Secure Passwords</span>
+                            <span class="status-pill" style="margin-left:auto;background:rgba(0,212,255,0.08);color:var(--accent);font-size:10px;">CONTEXT-AWARE</span>
+                        </div>
+                        <p style="font-size:12px;color:var(--text-muted);margin-bottom:1rem;margin-top:0.5rem;">Generated from your organisation context. Click any password to copy.</p>
+                        <div id="aipPasswordList" class="aip-pw-list"></div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <i data-lucide="list-checks" style="width:16px;height:16px;"></i>
+                            <span>Recommended Policy Rules</span>
+                        </div>
+                        <div id="aipPolicyRules" class="aip-rules-list" style="margin-top:0.5rem;"></div>
+                    </div>
+                </div>
+
+            </div><!-- end #aipContent -->
+
+            <!-- policySection kept for JS compatibility -->
             <div id="policySection" style="display:none;"></div>
         </section><!-- end #page-ai-policy -->
 

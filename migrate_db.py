@@ -3,6 +3,11 @@ migrate_db.py — One-time migration script
 Adds missing columns to existing tables without dropping any data.
 Run once with: python migrate_db.py
 """
+import os
+# Ensure dev environment is set before importing app (prevents SECRET_KEY crash)
+os.environ.setdefault('FLASK_ENV', 'development')
+os.environ.setdefault('SECRET_KEY', 'migrate-temp-key')
+
 from app import app
 from models import db
 from sqlalchemy import text, inspect
@@ -50,6 +55,22 @@ def migrate():
                 if 'risk_score' not in existing_analysis_cols:
                     conn.execute(text("ALTER TABLE analyses ADD COLUMN risk_score FLOAT"))
                     print("✅ Added column: analyses.risk_score")
+
+                # BUG FIX: ensure analysis_data column exists (actual DB column name)
+                if 'analysis_data' not in existing_analysis_cols:
+                    conn.execute(text("ALTER TABLE analyses ADD COLUMN analysis_data TEXT NOT NULL DEFAULT '{}'"))
+                    print("✅ Added column: analyses.analysis_data")
+
+                # BUG FIX: old schema used 'timestamp', new schema uses 'created_at'
+                # SQLite does not support RENAME COLUMN before v3.25 so we handle both:
+                # if 'timestamp' exists but 'created_at' does not, add created_at and copy data
+                if 'timestamp' in existing_analysis_cols and 'created_at' not in existing_analysis_cols:
+                    conn.execute(text("ALTER TABLE analyses ADD COLUMN created_at DATETIME"))
+                    conn.execute(text("UPDATE analyses SET created_at = timestamp"))
+                    print("✅ Migrated: analyses.timestamp → created_at")
+                elif 'created_at' not in existing_analysis_cols:
+                    conn.execute(text("ALTER TABLE analyses ADD COLUMN created_at DATETIME NOT NULL DEFAULT (datetime('now'))"))
+                    print("✅ Added column: analyses.created_at")
 
                 conn.commit()
 

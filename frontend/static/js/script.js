@@ -14,7 +14,7 @@
 (function () {
     'use strict';
 
-    const S = { file: null, results: null, user: null, submitting: false, charts: {} };
+    const S = { file: null, results: null, user: null, submitting: false, charts: {}, _passwords: [], _datasetName: '' };
     const $  = id  => document.getElementById(id);
     const qs = sel => document.querySelector(sel);
 
@@ -31,6 +31,7 @@
         setupSettingsInteractions();
         setupAIDrawer();
         setupComplianceRefresh();
+        setupAIPolicy();
         await checkAuth();
         if (window.lucide) lucide.createIcons();
     });
@@ -119,11 +120,19 @@
                 e.preventDefault();
                 const page = el.getAttribute('data-page');
                 showPage(page);
+                // FIX: call page-specific init here, in the click handler,
+                // because click listeners capture the LOCAL showPage variable
+                // via closure — overriding window.showPage has no effect on them.
+                if (page === 'ai-policy') initAIPolicyPage();
             });
         });
 
         // Expose globally so other modules can navigate programmatically
-        window.showPage = showPage;
+        // and keep the window.showPage override for any programmatic calls.
+        window.showPage = function(name) {
+            showPage(name);
+            if (name === 'ai-policy') initAIPolicyPage();
+        };
     }
 
     /* ══ SETTINGS NAV ═══════════════════════════════════ */
@@ -428,16 +437,28 @@
             const form = new FormData();
             form.append('file', S.file); form.append('enable_breach_check','1');
             const headers = {}; if (csrf) headers['X-CSRFToken'] = csrf;
+
+            // Store raw passwords client-side for the terminal attack engine
+            try {
+                const fileText = await S.file.text();
+                S._passwords = fileText.split('\n')
+                    .map(l => l.split(',')[0].trim())
+                    .filter(l => l && !l.startsWith('#'));
+                S._datasetName = S.file.name || 'dataset.txt';
+            } catch {}
+
             const res = await fetch('/api/analyze', { method:'POST', headers, body:form, credentials:'include' });
             if (res.status===401) { toast('Session expired — please log in.','error'); window.location.href='/login'; return; }
             if (!res.ok) { const err=await res.json().catch(()=>({})); throw new Error(err.error||`Server error ${res.status}`); }
             S.results = await res.json();
             completeSteps();
+            // Reset AI Policy so it re-fetches fresh data on next navigation
+            _aipLoaded = false;
             setTimeout(() => {
                 if (load) load.style.display='none';
                 renderResults(S.results);
                 renderAIDrawer(S.results.ai_insights);
-                toast('Analysis complete!','success');
+                toast('Analysis complete! Navigate to AI Policy to generate recommendations.','success');
             }, 500);
         } catch (err) {
             if (load) load.style.display='none'; if (inp) inp.style.display='block';
@@ -797,25 +818,31 @@ ${violations.length > 0 ? '- Key violations: ' + violations.slice(0,3).map(v => 
 Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard most affected, 3) one specific remediation action, 4) business impact if not addressed. Be specific, cite standards by name. No bullet points, no headers. Professional tone.`;
 
         try {
-            const resp = await fetch('https://api.anthropic.com/v1/messages', {
+            // Call backend proxy — direct browser→Anthropic calls are blocked by CORS
+            const resp = await fetch('/api/compliance-ai', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({
-                    model: 'claude-sonnet-4-20250514',
-                    max_tokens: 1000,
-                    messages: [{ role: 'user', content: prompt }]
+                    nist_status:  compliance.nist_compliance_status,
+                    owasp_risk:   compliance.owasp_risk_level,
+                    iso_status:   compliance.iso_compliance_status,
+                    nist_score:   nistScore,
+                    owasp_score:  owaspScore,
+                    iso_score:    isoScore,
+                    violations:   violations,
                 })
             });
             const data = await resp.json();
-            const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
-            if (text && textEl) {
+            if (data.success && data.text && textEl) {
                 textEl.className = 'compliance-ai-text';
-                textEl.textContent = text;
+                textEl.textContent = data.text;
+            } else {
+                throw new Error(data.error || 'No text returned');
             }
         } catch (e) {
             if (textEl) {
                 textEl.className = 'compliance-ai-text';
-                // Fallback from notes if API fails
                 const notes = compliance.compliance_notes || [];
                 textEl.textContent = notes.length > 0
                     ? notes.slice(0, 3).join(' ')
@@ -825,23 +852,9 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
     }
 
     function renderAttackScenarios(attacks) {
-        const term=$('attackResults'); if (!term||!attacks||!attacks.length) return;
-        term.innerHTML='';
-        attacks.forEach((a,i)=>setTimeout(()=>{
-            const div=document.createElement('div');
-            // Bug 5 fix: fallback returns strings; normal path returns objects
-            let p, col, line;
-            if (typeof a === 'string') {
-                p = 0; col = '#00d4ff';
-                line = `<span class="terminal-prompt">$</span><span style="color:${col}">[--]</span> ${esc(a)}`;
-            } else {
-                p = (a.probability||0).toFixed(1);
-                col = a.probability>60?'#ff5f57':a.probability>30?'#febc2e':'#00d4ff';
-                line = `<span class="terminal-prompt">$</span><span style="color:${col}">[${p}%]</span> ${esc(a.name)}: ${esc(a.description)} (${(a.count||0).toLocaleString()}/${(a.total||0).toLocaleString()})`;
-            }
-            div.className='log-dim'; div.innerHTML=line;
-            term.appendChild(div); term.scrollTop=term.scrollHeight;
-        }, i*200));
+        // Attack scenarios are now handled by the real-time Terminal Attack Engine.
+        // This function is kept for compatibility but does not render to attackResults.
+        // Users run attacks from the Terminal panel with the Execute Simulation button.
     }
 
     function renderPolicyImpact(policy, recommended, examples) {
@@ -849,7 +862,10 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
         // Target the dedicated AI Policy panel section
         const wrap = $('policySection');
         if (!wrap) return;
-        wrap.style.display = 'block';
+        // Don't render old policy card — the new AI Policy page handles this
+        // Just hide it so it doesn't appear below the empty state
+        wrap.style.display = 'none';
+        return;
         // Bug 2 fix: policy_simulator returns flat keys — no nested projected_improvement wrapper
         const currentScore  = policy.current_score   || 0;
         const projectedScore = policy.projected_score || 0;
@@ -860,9 +876,7 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
             ['Improvement',     '+' + improvement.toFixed(1) + ' pts'],
         ];
         const recText = recommended ? (typeof recommended === 'string' ? recommended : recommended.description || '') : '';
-        // Also clear the empty-state
-        const pc = $('aiPolicyPageContent');
-        if (pc) pc.innerHTML = '';
+        // (aiPolicyPageContent removed — policy lives in #page-ai-policy)
         wrap.className = 'card';
         wrap.style.marginTop = '0';
         wrap.innerHTML = `
@@ -1262,34 +1276,264 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
         });
     }
 
-    /* ══ SIMULATION ═════════════════════════════════════ */
-    function setupSimulation() {
-        const runBtn=$('btnRunSim'), dlBtn=$('downloadBtn');
-        if (runBtn) {
-            runBtn.addEventListener('click', ()=>{
-                const term=$('attackResults'); if (!term) return; term.innerHTML='';
-                if (S.results&&S.results.attack_scenarios&&S.results.attack_scenarios.length) {
-                    S.results.attack_scenarios.forEach((a,i)=>setTimeout(()=>{
-                        const div=document.createElement('div');
-                        // Bug 5 fix: handle both string (fallback) and object (normal) scenarios
-                        let line;
-                        if (typeof a === 'string') {
-                            line = `<span class="terminal-prompt">$</span><span style="color:#00d4ff">[--]</span> ${esc(a)}`;
-                        } else {
-                            const p=(a.probability||0).toFixed(1), col=a.probability>60?'#ff5f57':a.probability>30?'#febc2e':'#00d4ff';
-                            line = `<span class="terminal-prompt">$</span><span style="color:${col}">[${p}%]</span> ${esc(a.name)}: ${esc(a.description)} (${(a.count||0).toLocaleString()} of ${(a.total||0).toLocaleString()})`;
-                        }
-                        div.className='log-dim'; div.innerHTML=line;
-                        term.appendChild(div); term.scrollTop=term.scrollHeight;
-                    }, i*280));
-                } else {
-                    [{text:'No dataset loaded. Upload a file first.',cls:'log-dim'}].forEach((l,i)=>setTimeout(()=>{
-                        const div=document.createElement('div'); div.className=l.cls; div.innerHTML=`<span class="terminal-prompt">$</span>${esc(l.text)}`; term.appendChild(div);
-                    },i*200));
+    /* ══ TERMINAL ATTACK ENGINE ══════════════════════════ */
+
+    // Shared state for the terminal
+    const TERM = { running: false, customWordlist: null, wlName: null };
+
+    function termLog(html, cls='') {
+        const term = $('attackResults'); if (!term) return;
+        const div = document.createElement('div');
+        div.className = cls;
+        div.innerHTML = html;
+        term.appendChild(div);
+        const t = $('attackTerminal'); if (t) t.scrollTop = t.scrollHeight;
+    }
+
+    function termLine(msg, color) {
+        const col = color || 'var(--text-muted)';
+        termLog(`<span class="terminal-prompt">$</span> <span style="color:${col}">${esc(msg)}</span>`);
+    }
+
+    function termClear() {
+        const r = $('attackResults'); if (r) r.innerHTML = '';
+        const sb = $('termStatsBar'); if (sb) sb.style.display = 'none';
+        ['termStatTotal','termStatCracked','termStatRate','termStatTime'].forEach(id => setText(id, '—'));
+    }
+
+    function termSetBusy(busy) {
+        TERM.running = busy;
+        const runBtn = $('btnRunSim'), fireBtn = $('termSingleFire');
+        if (runBtn) { runBtn.disabled = busy; runBtn.innerHTML = busy
+            ? '<i data-lucide="loader" style="width:14px;height:14px;"></i> Running…'
+            : '<i data-lucide="zap" style="width:14px;height:14px;"></i> Execute Simulation'; }
+        if (fireBtn) { fireBtn.disabled = busy; fireBtn.innerHTML = busy
+            ? '<i data-lucide="loader" style="width:13px;height:13px;"></i>'
+            : '<i data-lucide="flame" style="width:13px;height:13px;"></i> Attack'; }
+        if (window.lucide) lucide.createIcons();
+    }
+
+    function termUpdateStats(data) {
+        const sb = $('termStatsBar');
+        if (sb) sb.style.display = 'grid';
+        setText('termStatTotal', (data.total||0).toLocaleString());
+        const cracked = data.cracked || 0;
+        const el = $('termStatCracked'); if (el) { el.textContent = cracked.toLocaleString(); el.style.color = cracked > 0 ? '#ff5f57' : '#00b86e'; }
+        const rate = data.crack_rate || 0;
+        const re = $('termStatRate'); if (re) { re.textContent = rate + '%'; re.style.color = rate > 60 ? '#ff5f57' : rate > 30 ? '#febc2e' : '#00b86e'; }
+        setText('termStatTime', (data.elapsed || 0) + 's');
+    }
+
+    function termRenderLine(evt) {
+        if (!evt || !evt.type) return;
+        switch (evt.type) {
+            case 'init':
+                termLog(`<span class="terminal-prompt">$</span> <span style="color:var(--accent)">${esc(evt.message)}</span>`);
+                break;
+            case 'log':
+                termLog(`<span class="terminal-prompt">$</span> <span class="log-dim">${esc(evt.message)}</span>`);
+                break;
+            case 'hit': {
+                const attack = (evt.attack || '').toLowerCase();
+                let icon, col, detail = '';
+                if (attack === 'dictionary') {
+                    col = evt.exact ? '#ff5f57' : '#febc2e';
+                    icon = evt.exact ? '💥' : '⚠️';
+                    const score = evt.score || 100;
+                    const rank = evt.rank ? ` (rank #${evt.rank.toLocaleString()})` : '';
+                    const matchStr = evt.match && evt.match !== evt.password.toLowerCase() ? ` → matched <b style="color:#febc2e">${esc(evt.match)}</b>` : '';
+                    detail = `${evt.exact ? '[EXACT]' : `[${score.toFixed(0)}% MATCH]`}${matchStr}${rank}`;
+                } else if (attack === 'keyboard') {
+                    col = '#febc2e'; icon = '⌨️';
+                    detail = `keyboard walk: <b style="color:#febc2e">"${esc(evt.pattern || '')}"</b>`;
+                } else if (attack === 'pattern') {
+                    col = '#febc2e'; icon = '🔁';
+                    detail = `pattern: ${esc(evt.pattern || 'structural weakness')}`;
+                } else if (attack === 'brute') {
+                    col = '#ff5f57'; icon = '⚡';
+                    detail = `too short (${evt.length} chars) — brute-forceable instantly`;
                 }
+                termLog(`<span class="terminal-prompt">$</span> <span style="color:${col}">[HIT]</span> <b style="color:var(--text-primary);font-family:var(--font-mono)">${esc(evt.password)}</b> — ${detail} ${icon}`);
+                break;
+            }
+            case 'miss': {
+                const col2 = '#00b86e';
+                termLog(`<span class="terminal-prompt">$</span> <span style="color:${col2}">[${evt.password && !evt.attack ? 'SECURE' : 'MISS'}]</span> <span style="color:var(--text-muted)">${esc(evt.password || '')}</span> — <span class="log-dim">${esc((evt.message||'').split(' — ')[1] || 'no match')}</span>`);
+                break;
+            }
+            case 'done': {
+                const rate = evt.crack_rate || 0;
+                const col3 = rate > 60 ? '#ff5f57' : rate > 30 ? '#febc2e' : '#00b86e';
+                termLog(`<span class="terminal-prompt">$</span> <span style="color:var(--text-muted)">────────────────────────────────────────────────</span>`);
+                termLog(`<span class="terminal-prompt">$</span> <span style="color:${col3}">[DONE]</span> <b>${evt.cracked||0}</b>/<b>${evt.total||0}</b> cracked — <b style="color:${col3}">${rate}% crack rate</b> — completed in <b>${evt.elapsed||0}s</b>`);
+                termLog(`<span class="terminal-prompt">$</span> <span class="log-dim">Wordlist: ${esc(evt.wordlist_source||'')} (${(evt.wordlist_size||0).toLocaleString()} entries)</span>`);
+                termUpdateStats(evt);
+                break;
+            }
+            case 'error':
+                termLog(`<span class="terminal-prompt">$</span> <span style="color:#ff5f57">${esc(evt.message||'Unknown error')}</span>`);
+                break;
+        }
+    }
+
+    async function runTerminalAttack(passwords, singlePw, datasetName) {
+        if (TERM.running) return;
+        termClear();
+        termSetBusy(true);
+
+        const attackType = ($('termAttackType') || {}).value || 'all';
+        const pwList = passwords || [];
+        const fname = datasetName || TERM.wlName || 'dataset.txt';
+
+        // Realistic terminal command echoes
+        if (singlePw) {
+            termLog(`<span class="terminal-prompt">$</span> <span style="color:var(--text-primary)">securepass --mode single --target "${esc(singlePw)}" --attack ${attackType}</span>`);
+        } else {
+            termLog(`<span class="terminal-prompt">$</span> <span style="color:var(--text-primary)">loading dataset ${esc(fname)}</span>`);
+            termLog(`<span class="terminal-prompt">$</span> <span class="log-dim">[OK] ${pwList.length.toLocaleString()} passwords loaded</span>`);
+            if (attackType === 'all' || attackType === 'dictionary') {
+                termLog(`<span class="terminal-prompt">$</span> <span style="color:var(--text-primary)">hashcat -m 0 -a 0 ${esc(fname)} rockyou.txt --status</span>`);
+            }
+            if (attackType === 'all' || attackType === 'keyboard') {
+                termLog(`<span class="terminal-prompt">$</span> <span style="color:var(--text-primary)">keyboard_walk_scan ${esc(fname)}</span>`);
+            }
+            if (attackType === 'all' || attackType === 'pattern') {
+                termLog(`<span class="terminal-prompt">$</span> <span style="color:var(--text-primary)">python pattern_cracker.py ${esc(fname)}</span>`);
+            }
+            if (attackType === 'all' || attackType === 'brute') {
+                termLog(`<span class="terminal-prompt">$</span> <span style="color:var(--text-primary)">brute_force_estimator ${esc(fname)} --charset all</span>`);
+            }
+        }
+
+        try {
+            const formData = new FormData();
+            if (singlePw) formData.append('single_password', singlePw);
+            if (pwList.length) formData.append('passwords', pwList.join('\n'));
+            formData.append('attack_type', attackType);
+            if (TERM.customWordlist) formData.append('wordlist', TERM.customWordlist);
+
+            const res = await fetch('/api/terminal-attack', {
+                method: 'POST',
+                body: formData,
+                credentials: 'include',
+            });
+
+            if (!res.ok || !res.body) {
+                throw new Error(`Server returned ${res.status}`);
+            }
+
+            // Stream NDJSON line by line
+            const reader = res.body.getReader();
+            const decoder = new TextDecoder();
+            let buf = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buf += decoder.decode(value, { stream: true });
+                const lines = buf.split('\n');
+                buf = lines.pop(); // keep incomplete line
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed) continue;
+                    try {
+                        const evt = JSON.parse(trimmed);
+                        termRenderLine(evt);
+                    } catch {}
+                }
+            }
+            // Process any remaining buffer
+            if (buf.trim()) {
+                try { termRenderLine(JSON.parse(buf.trim())); } catch {}
+            }
+
+        } catch (err) {
+            termLog(`<span class="terminal-prompt">$</span> <span style="color:#ff5f57">[ERROR] ${esc(err.message||'Connection failed')}</span>`);
+        } finally {
+            // Show cursor again
+            const cl = $('termCursorLine');
+            if (cl) cl.style.display = '';
+            termSetBusy(false);
+        }
+    }
+
+    function setupSimulation() {
+        const dlBtn = $('downloadBtn');
+        if (dlBtn) dlBtn.addEventListener('click', downloadReport);
+
+        // ── Execute Simulation (dataset) ────────────────────────────
+        const runBtn = $('btnRunSim');
+        if (runBtn) {
+            runBtn.addEventListener('click', () => {
+                if (TERM.running) return;
+                // Hide cursor during run
+                const cl = $('termCursorLine'); if (cl) cl.style.display = 'none';
+
+                // Use stored passwords directly — no attack_scenarios gate needed
+                const passwords = S._passwords || [];
+                if (!passwords.length) {
+                    termClear();
+                    termLog(`<span class="terminal-prompt">$</span> <span class="log-dim">[SYSTEM] No dataset loaded. Upload a password file from the Dashboard first.</span>`);
+                    return;
+                }
+                runTerminalAttack(passwords, null, S._datasetName || 'dataset.txt');
             });
         }
-        if (dlBtn) dlBtn.addEventListener('click', downloadReport);
+
+        // ── Single password Attack ───────────────────────────────────
+        const fireBtn = $('termSingleFire');
+        if (fireBtn) {
+            fireBtn.addEventListener('click', () => {
+                const inp = $('termSinglePw');
+                const pw = inp && inp.value.trim();
+                if (!pw) { toast('Enter a password to test.', 'error'); return; }
+                const cl = $('termCursorLine'); if (cl) cl.style.display = 'none';
+                runTerminalAttack([], pw, null);
+            });
+        }
+
+        // ── Single pw Enter key ─────────────────────────────────────
+        const singleInp = $('termSinglePw');
+        if (singleInp) {
+            singleInp.addEventListener('keydown', e => {
+                if (e.key === 'Enter') { const fb = $('termSingleFire'); if (fb) fb.click(); }
+            });
+        }
+
+        // ── Eye toggle ──────────────────────────────────────────────
+        const eye = $('termSingleEye');
+        if (eye) {
+            eye.addEventListener('click', () => {
+                const inp = $('termSinglePw'); if (!inp) return;
+                inp.type = inp.type === 'password' ? 'text' : 'password';
+                const ic = eye.querySelector('i') || eye.querySelector('svg');
+                if (ic) { ic.setAttribute('data-lucide', inp.type === 'password' ? 'eye' : 'eye-off'); if (window.lucide) lucide.createIcons(); }
+            });
+        }
+
+        // ── Wordlist upload ─────────────────────────────────────────
+        const wlFile = $('termWlFile');
+        if (wlFile) {
+            wlFile.addEventListener('change', e => {
+                const f = e.target.files[0];
+                if (!f) return;
+                TERM.customWordlist = f;
+                TERM.wlName = f.name;
+                const lbl = $('termWlLabel');
+                if (lbl) lbl.textContent = f.name.length > 14 ? f.name.slice(0, 12) + '…' : f.name;
+                toast(`Wordlist loaded: ${f.name}`, 'success');
+            });
+        }
+
+        // ── Clear terminal ──────────────────────────────────────────
+        const clrBtn = $('termClearBtn');
+        if (clrBtn) {
+            clrBtn.addEventListener('click', () => {
+                termClear();
+                termLog(`<span class="terminal-prompt">$</span> <span style="color:var(--text-muted)">exec securepass --mode attack-vector --profile generic</span>`);
+                setTimeout(() => termLog(`<span class="terminal-prompt">$</span> <span class="log-dim">[SYSTEM] Ready.</span>`), 320);
+            });
+        }
     }
 
     async function downloadReport() {
@@ -1365,7 +1609,7 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
     }
 
     function resetDashboard() {
-        S.results=null; clearFile();
+        S.results=null; S._passwords=[]; S._datasetName=''; clearFile();
         // Hide dashboard rows
         [$('resultsSection'),$('breachSection')].forEach(el=>{ if(el) el.style.display='none'; });
         [$('downloadBtn'),$('newAnalysisBtn')].forEach(el=>{ if(el) el.style.display='none'; });
@@ -1395,6 +1639,283 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
         // Wire the Reports panel Download button to the same downloadReport() fn
         const btn=$('downloadBtnReports');
         if (btn) btn.addEventListener('click', downloadReport);
+    }
+
+
+    /* ══ AI POLICY PAGE ══════════════════════════════════ */
+
+    let _aipLoaded = false;
+
+    function setupAIPolicy() {
+        const btn = document.getElementById('aipApplyBtn');
+        if (!btn) return;
+        btn.addEventListener('click', async () => {
+            _aipLoaded = false;
+            const snap = await _aipFetchSnapshot();
+            if (snap && snap.has_data) {
+                _aipFillBefore(snap);
+                await _aipGenerate(snap);
+            }
+        });
+    }
+
+    async function initAIPolicyPage() {
+        let snap = await _aipFetchSnapshot();
+
+        // Fallback: if DB has no record yet, build snapshot from in-memory S.results
+        if ((!snap || !snap.has_data) && S.results) {
+            const ov  = S.results.overview  || {};
+            const hib = S.results.hibp      || {};
+            const com = S.results.compliance || {};
+            const total  = ov.total_passwords || 0;
+            const unique = ov.unique_passwords || total;
+            snap = {
+                has_data:         true,
+                analysis_id:      S.results.analysis_id || null,
+                risk_score:       ov.risk_score        || 0,
+                risk_level:       S.results.risk_level || 'Unknown',
+                weak_count:       ov.weak_passwords    || 0,
+                total_passwords:  total,
+                avg_length:       ov.average_length    || 0,
+                breach_pct:       hib.breach_percentage || 0,
+                breach_count:     hib.total_breached   || 0,
+                reuse_pct:        total > 0 ? Math.round((total - unique) / total * 100 * 10) / 10 : 0,
+                compliance_status: com.overall_status  || 'Unknown',
+                _inline_results:  S.results,   // carry full data for _aipGenerate
+            };
+        }
+
+        const empty   = document.getElementById('aipEmpty');
+        const content = document.getElementById('aipContent');
+        const btn     = document.getElementById('aipApplyBtn');
+
+        if (!snap || !snap.has_data) {
+            if (empty)   empty.style.display   = 'flex';
+            if (content) content.style.display  = 'none';
+            if (btn)     btn.style.display      = 'none';
+            return;
+        }
+
+        if (empty)   empty.style.display   = 'none';
+        if (content) content.style.display = 'block';
+        if (btn)     btn.style.display     = 'flex';
+
+        _aipFillBefore(snap);
+
+        if (!_aipLoaded) {
+            await _aipGenerate(snap);
+        } else {
+            // Already generated — just ensure all result cards are visible
+            // (summaryCard starts as display:none in HTML and is only shown inside _aipGenerate)
+            const summCard = document.getElementById('aipSummaryCard');
+            if (summCard) summCard.style.display = 'block';
+            const gridEl = document.getElementById('aipCompareGrid');
+            if (gridEl) gridEl.style.opacity = '1';
+        }
+    }
+
+    async function _aipFetchSnapshot() {
+        try {
+            const r = await fetch('/api/ai-policy/snapshot', { credentials: 'include' });
+            if (!r.ok) {
+                if (r.status === 401) { console.warn('AI Policy: not authenticated'); }
+                else { console.error('AI Policy snapshot HTTP error:', r.status); }
+                return null;
+            }
+            return await r.json();
+        } catch(e) {
+            console.error('AI Policy snapshot error:', e);
+            return null;
+        }
+    }
+
+    function _aipFillBefore(snap) {
+        const riskCol = snap.risk_score >= 75 ? '#00b86e'
+                      : snap.risk_score >= 50 ? '#febc2e' : '#ff5f57';
+
+        const scoreEl = document.getElementById('aipBeforeScore');
+        if (scoreEl) { scoreEl.textContent = snap.risk_score ?? '—'; scoreEl.style.color = riskCol; }
+
+        const _s = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val ?? '—'; };
+        _s('aipBeforeBreaches', snap.breach_count ?? 0);
+        _s('aipBeforeWeak',     snap.weak_count   ?? 0);
+        _s('aipBeforeLength',   snap.avg_length   ? snap.avg_length + ' ch' : '—');
+        _s('aipBeforeReuse',    snap.reuse_pct    ? snap.reuse_pct + '%'    : '0%');
+
+        const badge = document.getElementById('aipBeforeRiskBadge');
+        if (badge) {
+            badge.textContent = snap.risk_level || '—';
+            badge.style.color = riskCol;
+            badge.style.background = riskCol === '#ff5f57' ? 'rgba(255,95,87,0.15)'
+                                   : riskCol === '#febc2e' ? 'rgba(254,188,46,0.15)'
+                                   : 'rgba(0,184,110,0.15)';
+        }
+
+        const comp = document.getElementById('aipBeforeCompliance');
+        if (comp) {
+            const s = (snap.compliance_status || '').toLowerCase();
+            const ok  = s === 'compliant' || s === 'full' || s === 'strong';
+            const mid = s.includes('partial') || s === 'medium';
+            comp.textContent   = snap.compliance_status || '—';
+            comp.style.background = ok ? 'rgba(0,184,110,0.12)' : mid ? 'rgba(254,188,46,0.12)' : 'rgba(255,95,87,0.12)';
+            comp.style.color      = ok ? '#00b86e'               : mid ? '#febc2e'               : '#ff5f57';
+        }
+    }
+
+    async function _aipGenerate(snap) {
+        const loadEl   = document.getElementById('aipLoading');
+        const gridEl   = document.getElementById('aipCompareGrid');
+        const summCard = document.getElementById('aipSummaryCard');
+
+        if (loadEl)   loadEl.style.display    = 'block';
+        if (gridEl)   gridEl.style.opacity    = '0.35';
+        if (summCard) summCard.style.display  = 'none';
+
+        const msgs = [
+            'Analysing password vulnerability patterns...',
+            'Running policy simulation engine...',
+            'Generating context-aware passwords...',
+            'Composing AI security assessment...',
+        ];
+        let mi = 0;
+        const ticker = setInterval(() => {
+            const el = document.getElementById('aipLoadingText');
+            if (el && mi < msgs.length) el.textContent = msgs[mi++];
+        }, 1400);
+
+        try {
+            const payload = {
+                analysis_id:        snap.analysis_id,
+                current_risk_score: snap.risk_score,
+                compliance_status:  snap.compliance_status,
+                user_name: (S.user && (S.user.username || (S.user.email || '').split('@')[0])) || '',
+                org_name:  '',
+                city:      'Mumbai',
+                domain:    'cyber',
+                // Pass full inline results when DB record may not exist yet
+                inline_results: snap._inline_results || null,
+            };
+
+            const r = await fetch('/api/ai-policy', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(payload),
+            });
+
+            clearInterval(ticker);
+            if (loadEl) loadEl.style.display  = 'none';
+            if (gridEl) gridEl.style.opacity  = '1';
+
+            if (!r.ok) throw new Error('Server error: ' + r.status);
+            const d = await r.json();
+            if (!d.success) throw new Error(d.error || 'API error');
+
+            _aipRenderAfter(d);
+            _aipRenderDelta(d);
+            _aipRenderSummary(d.ai_summary || '');
+            _aipRenderPasswords(d.memorable_passwords || []);
+            _aipRenderPolicy(d.recommended_policy || {});
+
+            if (summCard) summCard.style.display = 'block';
+            _aipLoaded = true;
+            if (window.lucide) lucide.createIcons();
+
+        } catch(e) {
+            clearInterval(ticker);
+            if (loadEl) loadEl.style.display  = 'none';
+            if (gridEl) gridEl.style.opacity  = '1';
+            if (summCard) summCard.style.display = 'block';
+            console.error('AI Policy generation error:', e);
+            toast('Policy generation failed: ' + (e.message || 'Please try again.'), 'error');
+        }
+    }
+
+    function _aipRenderAfter(d) {
+        const proj = d.projected || {};
+        const _s = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val ?? '—'; };
+        _s('aipAfterScore',      proj.score      ?? '—');
+        _s('aipAfterBreaches',   proj.breaches   ?? 0);
+        _s('aipAfterCompliance', proj.compliance ?? '—');
+        const badge = document.getElementById('aipAfterRiskBadge');
+        if (badge) badge.textContent = proj.risk_level || 'Low Risk';
+    }
+
+    function _aipRenderDelta(d) {
+        const delta = d.delta || {};
+        const ds = document.getElementById('aipDeltaScore');
+        if (ds) {
+            const v = delta.score ?? 0;
+            ds.textContent = (v > 0 ? '+' : '') + v;
+            ds.style.color = v > 0 ? '#00b86e' : '#febc2e';
+        }
+        const db = document.getElementById('aipDeltaBreaches');
+        if (db) db.textContent = (delta.breaches_reduced ?? 0) + ' less';
+
+        const cu = document.getElementById('aipComplianceUpgrade');
+        if (cu) cu.style.display = delta.compliance_upgrade ? 'flex' : 'none';
+    }
+
+    function _aipRenderSummary(text) {
+        const el = document.getElementById('aipSummaryText');
+        if (!el || !text) return;
+        el.textContent = '';
+        let i = 0;
+        const iv = setInterval(() => {
+            el.textContent += text[i++];
+            if (i >= text.length) clearInterval(iv);
+        }, 10);
+    }
+
+    function _aipRenderPasswords(passwords) {
+        const list = document.getElementById('aipPasswordList');
+        if (!list) return;
+        list.innerHTML = passwords.map(pw => {
+            const safe = esc(pw);
+            return `<div class="aip-pw-item" data-pw="${safe}">
+                <span>${safe}</span>
+                <span class="aip-pw-copy">Click to copy</span>
+            </div>`;
+        }).join('');
+        list.querySelectorAll('.aip-pw-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const pw = item.getAttribute('data-pw');
+                navigator.clipboard.writeText(pw).catch(() => {});
+                item.classList.add('aip-copied');
+                const span = item.querySelector('.aip-pw-copy');
+                if (span) span.textContent = '✓ Copied!';
+                setTimeout(() => {
+                    item.classList.remove('aip-copied');
+                    if (span) span.textContent = 'Click to copy';
+                }, 1800);
+            });
+        });
+    }
+
+    function _aipRenderPolicy(policy) {
+        const list = document.getElementById('aipPolicyRules');
+        if (!list) return;
+        const rules = [
+            { icon: 'ruler',        label: 'Minimum length',         val: (policy.min_length || 12) + '+ chars',           on: true },
+            { icon: 'type',         label: 'Uppercase required',      val: 'A–Z',                                            on: !!policy.require_upper },
+            { icon: 'hash',         label: 'Numbers required',        val: '0–9',                                            on: !!policy.require_number },
+            { icon: 'at-sign',      label: 'Special chars',           val: '!@#$%',                                          on: !!policy.require_special },
+            { icon: 'book-x',       label: 'Block dictionary words',  val: 'Enabled',                                        on: !!policy.block_dictionary },
+            { icon: 'keyboard',     label: 'Block keyboard patterns', val: 'Enabled',                                        on: !!policy.block_keyboard_patterns },
+            { icon: 'shield-check', label: 'MFA recommended',         val: 'Enabled',                                        on: !!policy.mfa_recommended },
+            { icon: 'rotate-cw',    label: 'Password rotation',       val: (policy.rotation_days || 90) + ' days',           on: true },
+            { icon: 'lock',         label: 'Lockout threshold',       val: (policy.lockout_attempts || 3) + ' attempts',     on: true },
+            { icon: 'history',      label: 'Password history',        val: 'Last ' + (policy.history_count || 5),            on: true },
+        ];
+        list.innerHTML = rules.map(r => `
+            <div class="aip-rule-item">
+                <div class="aip-rule-icon" style="${r.on ? '' : 'background:rgba(255,95,87,0.08);color:#ff5f57;'}">
+                    <i data-lucide="${esc(r.icon)}" style="width:14px;height:14px;"></i>
+                </div>
+                <span style="flex:1;">${esc(r.label)}</span>
+                <span style="font-family:var(--font-mono);font-size:12px;color:${r.on ? 'var(--accent)' : '#ff5f57'};">${esc(r.val)}</span>
+            </div>`).join('');
+        if (window.lucide) lucide.createIcons();
     }
 
     /* ══ UTILITIES ══════════════════════════════════════ */

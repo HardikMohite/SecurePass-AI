@@ -224,7 +224,7 @@ def get_user_stats():
     try:
         total_analyses = Analysis.query.filter_by(user_id=current_user.id).count()
         recent_analyses = Analysis.query.filter_by(user_id=current_user.id) \
-            .order_by(Analysis.timestamp.desc()) \
+            .order_by(Analysis.created_at.desc()) \
             .limit(5).all()
 
         return jsonify({
@@ -246,11 +246,11 @@ def get_user_history():
         per_page = request.args.get('per_page', 10, type=int)
 
         history = Analysis.query.filter_by(user_id=current_user.id) \
-            .order_by(Analysis.timestamp.desc()) \
+            .order_by(Analysis.created_at.desc()) \
             .paginate(page=page, per_page=per_page, error_out=False)
 
         return jsonify({
-            'history': [item.to_dict(rules=('-analysis_data',)) for item in history.items],
+            'history': [item.summary_dict() for item in history.items],
             'total': history.total,
             'page': history.page,
             'pages': history.pages,

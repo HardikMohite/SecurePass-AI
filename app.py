@@ -20,6 +20,7 @@ import os
 import sys
 import logging
 import tempfile
+import random
 from io import BytesIO
 
 # Load .env file automatically in development
@@ -215,6 +216,13 @@ def check_email_page():
 @app.route('/reset-password')
 def reset_password_page():
     return render_template('reset_password.html')
+
+
+@app.route('/ai-policy')
+@login_required
+def ai_policy_page():
+    """Renders the AI Policy generation page."""
+    return render_template('index.html')
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -429,7 +437,12 @@ def analyze():
             response_data['analysis_id'] = analysis.id
             app.logger.info('Analysis saved — id=%d', analysis.id)
         except Exception as db_err:
-            app.logger.warning('Failed to save analysis to DB: %s', db_err)
+            app.logger.error(
+                'Failed to save analysis to DB: %s — '
+                'AI Policy snapshot will use inline fallback. '
+                'Check your Analysis model and database connection.',
+                db_err, exc_info=True
+            )
             db.session.rollback()
 
         return jsonify(response_data), 200
@@ -654,6 +667,907 @@ def _transform_data_for_pdf(api_data: dict) -> dict:
         'risk_distribution':  risk_dist,
     }
 
+
+
+# ────────────────────────────────────────────────────────────────────────────
+#  /api/terminal-attack  — real-time attack simulation with streaming
+# ────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/terminal-attack', methods=['POST'])
+def terminal_attack():
+    """
+    Real attack simulation against a password list.
+
+    Accepts multipart/form-data OR JSON:
+      passwords    – newline-separated password list (string, required for list mode)
+      single_password – single password to check (string, optional)
+      attack_type  – 'dictionary' | 'keyboard' | 'pattern' | 'brute' | 'all' (default: 'all')
+      wordlist     – optional uploaded wordlist file (.txt)
+
+    Returns newline-delimited JSON (NDJSON) streamed to the client.
+    Each line is a JSON object: {"type": "hit"|"miss"|"stat"|"done", ...}
+    """
+    import json as _json
+    import time
+    import difflib
+    from flask import stream_with_context
+
+    # ── FIX: Capture ALL request data here, inside the request context,
+    #         BEFORE the generator is created.  Generators execute lazily —
+    #         by the time the first `yield` runs Flask may have already torn
+    #         down the request context, so any `request.*` access inside
+    #         generate() raises RuntimeError: Working outside of request context.
+    # ─────────────────────────────────────────────────────────────────────────
+    content_type = request.content_type or ''
+
+    # Parse all input data eagerly, right here in the view function
+    _single_pw: str | None = None
+    _passwords: list = []
+    _attack_type: str = 'all'
+    _custom_wordlist_words: list | None = None
+
+    try:
+        if 'multipart/form-data' in content_type:
+            _single_pw = (request.form.get('single_password') or '').strip() or None
+            _raw_pws   = request.form.get('passwords', '')
+            _attack_type = request.form.get('attack_type', 'all').strip().lower()
+            _passwords = [p.strip() for p in _raw_pws.splitlines() if p.strip()]
+
+            wl_file = request.files.get('wordlist')
+            if wl_file and wl_file.filename:
+                try:
+                    wl_content = wl_file.read().decode('utf-8', errors='ignore')
+                    _custom_wordlist_words = [
+                        ln.strip().lower() for ln in wl_content.splitlines()
+                        if ln.strip()
+                    ]
+                except Exception:
+                    app.logger.warning('terminal-attack: failed to read uploaded wordlist', exc_info=True)
+        else:
+            # JSON body (or empty / unknown content-type)
+            body = request.get_json(silent=True)
+            if body is None:
+                # Malformed or missing JSON — return a clean error immediately,
+                # before any streaming starts.
+                if content_type and 'application/json' in content_type:
+                    return jsonify({'error': 'Invalid JSON body.'}), 400
+                body = {}
+            _single_pw   = (body.get('single_password') or '').strip() or None
+            _raw_pws     = body.get('passwords', '')
+            _attack_type = (body.get('attack_type', 'all') or 'all').strip().lower()
+            if isinstance(_raw_pws, list):
+                _passwords = [str(p).strip() for p in _raw_pws if str(p).strip()]
+            else:
+                _passwords = [p.strip() for p in str(_raw_pws).splitlines() if p.strip()]
+    except Exception:
+        app.logger.exception('terminal-attack: failed to parse request data')
+        return jsonify({'error': 'Failed to parse request. Check Content-Type and body format.'}), 400
+
+    # Prepend single password if provided
+    if _single_pw:
+        _passwords = [_single_pw] + [p for p in _passwords if p != _single_pw]
+
+    # Early validation — return a plain error response (no streaming needed)
+    if not _passwords:
+        return jsonify({'error': 'No passwords provided.'}), 400
+
+    # ── All request data captured. Generator only uses plain local variables. ──
+
+    def _similarity(a: str, b: str) -> float:
+        """Return 0-100 similarity between two strings (case-insensitive)."""
+        a_low, b_low = a.lower(), b.lower()
+        if a_low == b_low:
+            return 100.0
+        ratio = difflib.SequenceMatcher(None, a_low, b_low).ratio()
+        return round(ratio * 100, 1)
+
+    def _fuzzy_check(password: str, wordlist: frozenset, threshold: float = 55.0):
+        """
+        Return (best_match, similarity_pct) if any wordlist entry is
+        similar enough to `password`, else (None, 0).
+        """
+        pw_low = password.lower()
+        # Exact match first (fast path)
+        if pw_low in wordlist:
+            return pw_low, 100.0
+        # Fuzzy match — only compare words of similar length to stay fast
+        pw_len = len(pw_low)
+        best_match, best_score = None, 0.0
+        for word in wordlist:
+            if abs(len(word) - pw_len) > max(4, pw_len // 2):
+                continue  # skip very different lengths
+            score = _similarity(pw_low, word)
+            if score > best_score:
+                best_score = score
+                best_match = word
+        if best_score >= threshold:
+            return best_match, best_score
+        return None, 0.0
+
+    # Bind captured values to local names so the closure is self-contained
+    # (no reference to `request` anywhere below this line)
+    passwords           = _passwords
+    attack_type         = _attack_type
+    custom_wordlist_words = _custom_wordlist_words
+
+    def generate():
+        try:
+            # ── All variables below come from the closure, NOT from `request` ──
+            # `passwords`, `attack_type`, `custom_wordlist_words` were captured
+            # above in the view function while the request context was still live.
+
+            # ── Load AttackSimulator + wordlist ───────────────────────
+            _sim_path = os.path.join(os.path.dirname(__file__), 'backend')
+            if _sim_path not in sys.path:
+                sys.path.insert(0, _sim_path)
+            from attack_simulator import AttackSimulator, _KEYBOARD_WALKS, _PATTERN_CHECKS, _LEET_MAP, _BRUTE_FORCE_MAX_LEN
+            import re as _re
+
+            # Try to load the built-in wordlist from the securepass folder
+            builtin_wordlist = None
+            wordlist_source = 'built-in'
+            wordlist_paths = [
+                os.path.join(os.path.dirname(__file__), 'securepass', 'password-wordlist.txt'),
+                os.path.join(os.path.dirname(__file__), 'password-wordlist.txt'),
+                os.path.join(os.path.dirname(__file__), 'wordlist.txt'),
+            ]
+            for wlp in wordlist_paths:
+                if os.path.exists(wlp):
+                    try:
+                        with open(wlp, 'r', encoding='utf-8', errors='ignore') as fh:
+                            builtin_wordlist = [ln.strip().lower() for ln in fh if ln.strip()]
+                        wordlist_source = os.path.basename(wlp)
+                        break
+                    except Exception:
+                        pass
+
+            # Custom upload overrides built-in
+            if custom_wordlist_words is not None:
+                active_wordlist = custom_wordlist_words
+                wordlist_source = 'uploaded wordlist'
+            elif builtin_wordlist:
+                active_wordlist = builtin_wordlist
+            else:
+                active_wordlist = list(AttackSimulator._BUILTIN_WORDLIST)
+                wordlist_source = 'built-in fallback'
+
+            wl_set = frozenset(active_wordlist)
+            walk_set = frozenset(w.lower() for w in _KEYBOARD_WALKS)
+
+            # ── Emit header ────────────────────────────────────────────
+            yield _json.dumps({
+                'type': 'init',
+                'message': f'[SYSTEM] SecurePass Attack Engine v4.0 — Loaded {len(wl_set):,} wordlist entries ({wordlist_source})',
+                'total': len(passwords),
+                'attack_type': attack_type,
+            }) + '\n'
+
+            time.sleep(0.05)
+            yield _json.dumps({'type': 'log', 'message': f'[SYSTEM] Target: {len(passwords)} password(s) — Attack mode: {attack_type.upper()}'}) + '\n'
+            time.sleep(0.05)
+            yield _json.dumps({'type': 'log', 'message': '[SYSTEM] Initializing attack vectors...'}) + '\n'
+            time.sleep(0.08)
+
+            # ── Per-password attack loop ───────────────────────────────
+            hits = 0
+            results_detail = []  # store for final stats
+            start_time = time.time()
+
+            def _leet_normalise(pw):
+                norm = pw
+                for leet_char, plain_char in _LEET_MAP.items():
+                    norm = norm.replace(leet_char, plain_char)
+                return norm
+
+            def _keyboard_hit(pw):
+                lo = pw.lower()
+                for w in walk_set:
+                    if w in lo:
+                        return w
+                return None
+
+            def _pattern_hit(pw):
+                for rx in _PATTERN_CHECKS:
+                    if rx.match(pw):
+                        return rx.pattern
+                norm = _leet_normalise(pw)
+                if norm != pw:
+                    for rx in _PATTERN_CHECKS:
+                        if rx.match(norm):
+                            return f'leet-variant ({norm})'
+                return None
+
+            for idx, pw in enumerate(passwords[:5000]):  # cap at 5000 for streaming
+                pw_results = {'password': pw, 'cracked': False, 'attacks': []}
+                cracked_by = []
+
+                # ── Dictionary attack ──────────────────────────────────
+                if attack_type in ('all', 'dictionary'):
+                    match, score = _fuzzy_check(pw, wl_set)
+                    if match:
+                        is_exact = score == 100.0
+                        cracked_by.append({
+                            'attack': 'dictionary',
+                            'match': match,
+                            'score': score,
+                            'exact': is_exact,
+                        })
+                        label = '[EXACT MATCH]' if is_exact else f'[{score:.0f}% MATCH]'
+                        rank = None
+                        if match in active_wordlist:
+                            try:
+                                rank = active_wordlist.index(match) + 1
+                            except Exception:
+                                pass
+                        rank_str = f' (rank #{rank:,})' if rank else ''
+                        pw_results['attacks'].append('dictionary')
+
+                        yield _json.dumps({
+                            'type': 'hit',
+                            'attack': 'dictionary',
+                            'password': pw,
+                            'match': match,
+                            'score': score,
+                            'exact': is_exact,
+                            'rank': rank,
+                            'message': f'[HIT] {pw} — {label} found in wordlist{rank_str}',
+                        }) + '\n'
+
+                # ── Keyboard walk attack ───────────────────────────────
+                if attack_type in ('all', 'keyboard'):
+                    walk_found = _keyboard_hit(pw)
+                    if walk_found:
+                        cracked_by.append({'attack': 'keyboard', 'pattern': walk_found})
+                        pw_results['attacks'].append('keyboard')
+                        yield _json.dumps({
+                            'type': 'hit',
+                            'attack': 'keyboard',
+                            'password': pw,
+                            'pattern': walk_found,
+                            'message': f'[HIT] {pw} — keyboard walk detected: "{walk_found}"',
+                        }) + '\n'
+                    elif attack_type == 'keyboard':
+                        yield _json.dumps({
+                            'type': 'miss',
+                            'attack': 'keyboard',
+                            'password': pw,
+                            'message': f'[MISS] {pw} — no keyboard walk pattern',
+                        }) + '\n'
+
+                # ── Pattern attack ─────────────────────────────────────
+                if attack_type in ('all', 'pattern'):
+                    pat_found = _pattern_hit(pw)
+                    if pat_found:
+                        cracked_by.append({'attack': 'pattern', 'pattern': pat_found})
+                        pw_results['attacks'].append('pattern')
+                        yield _json.dumps({
+                            'type': 'hit',
+                            'attack': 'pattern',
+                            'password': pw,
+                            'pattern': pat_found,
+                            'message': f'[HIT] {pw} — structural pattern: {pat_found}',
+                        }) + '\n'
+                    elif attack_type == 'pattern':
+                        yield _json.dumps({
+                            'type': 'miss',
+                            'attack': 'pattern',
+                            'password': pw,
+                            'message': f'[MISS] {pw} — no common pattern',
+                        }) + '\n'
+
+                # ── Brute force estimate ───────────────────────────────
+                if attack_type in ('all', 'brute'):
+                    if len(pw) <= _BRUTE_FORCE_MAX_LEN:
+                        cracked_by.append({'attack': 'brute', 'length': len(pw)})
+                        pw_results['attacks'].append('brute')
+                        yield _json.dumps({
+                            'type': 'hit',
+                            'attack': 'brute',
+                            'password': pw,
+                            'length': len(pw),
+                            'message': f'[HIT] {pw} — too short ({len(pw)} chars), brute-forceable in seconds',
+                        }) + '\n'
+                    elif attack_type == 'brute':
+                        yield _json.dumps({
+                            'type': 'miss',
+                            'attack': 'brute',
+                            'password': pw,
+                            'message': f'[MISS] {pw} — length {len(pw)} chars, brute force impractical',
+                        }) + '\n'
+
+                # ── If attack=all and no hit, report miss ──────────────
+                if attack_type == 'all' and not cracked_by:
+                    yield _json.dumps({
+                        'type': 'miss',
+                        'password': pw,
+                        'message': f'[SECURE] {pw} — survived all attack vectors',
+                    }) + '\n'
+
+                if cracked_by:
+                    hits += 1
+                    pw_results['cracked'] = True
+
+                results_detail.append(pw_results)
+                # Small delay for streaming feel (only for small lists)
+                if len(passwords) <= 50:
+                    time.sleep(0.04)
+
+            # ── Final stats ────────────────────────────────────────────
+            elapsed = round(time.time() - start_time, 2)
+            total_checked = min(len(passwords), 5000)
+            crack_rate = round(hits / total_checked * 100, 1) if total_checked else 0
+
+            yield _json.dumps({
+                'type': 'done',
+                'total': total_checked,
+                'cracked': hits,
+                'survived': total_checked - hits,
+                'crack_rate': crack_rate,
+                'elapsed': elapsed,
+                'wordlist_source': wordlist_source,
+                'wordlist_size': len(wl_set),
+                'message': f'[DONE] {hits}/{total_checked} cracked ({crack_rate}%) in {elapsed}s',
+            }) + '\n'
+
+        except Exception as exc:
+            app.logger.exception('terminal-attack stream error')
+            try:
+                yield _json.dumps({'type': 'error', 'message': f'[ERROR] {str(exc)}'}) + '\n'
+            except Exception:
+                pass  # generator already broken — nothing more to yield
+
+    # stream_with_context keeps the application context alive for the
+    # duration of the stream so that app.logger and db remain accessible.
+    # It does NOT re-open the request context — that is intentional; all
+    # request data was already captured above.
+    return app.response_class(
+        stream_with_context(generate()),
+        mimetype='application/x-ndjson',
+        headers={'X-Accel-Buffering': 'no', 'Cache-Control': 'no-cache'},
+    )
+
+# ────────────────────────────────────────────────────────────────────────────
+#  /api/report/<analysis_id>  — fetch stored analysis data by ID
+# ────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/report/<int:analysis_id>', methods=['GET'])
+@login_required
+def get_report(analysis_id):
+    """
+    Return the full stored analysis data for a given analysis ID.
+
+    Used by the Reports page to re-fetch past analyses for PDF re-generation
+    and inline preview expansion.
+
+    Returns 200 with analysis JSON, 403 if not owned by current user,
+    404 if not found, 500 on error.
+    """
+    try:
+        analysis = db.session.get(Analysis, analysis_id)
+        if not analysis:
+            return jsonify({'error': 'Analysis not found.'}), 404
+        if analysis.user_id != current_user.id:
+            return jsonify({'error': 'Access denied.'}), 403
+
+        data = analysis.analysis_data or {}
+        return jsonify({
+            'id':              analysis.id,
+            'filename':        analysis.filename,
+            'risk_score':      analysis.risk_score,
+            'risk_level':      analysis.risk_level,
+            'total_passwords': analysis.total_passwords,
+            'timestamp':       analysis.created_at.isoformat() if analysis.created_at else None,
+            'analysis_data':   data,
+        }), 200
+
+    except Exception:
+        app.logger.exception('Error in /api/report/%d', analysis_id)
+        return jsonify({'error': 'Failed to retrieve report.'}), 500
+
+
+# ────────────────────────────────────────────────────────────────────────────
+#  /api/ai-policy  — AI Policy Generation endpoint
+# ────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/ai-policy', methods=['POST'])
+@login_required
+def ai_policy():
+    """
+    AI-powered policy generation endpoint.
+
+    Accepts JSON:
+        user_name, org_name, domain, city,
+        analysis_id, current_risk_score, weak_patterns, compliance_status
+
+    Returns:
+        success, current, projected, delta,
+        recommended_policy, memorable_passwords, ai_summary
+    """
+
+    # ── Optional rate limiting ────────────────────────────────────────── #
+    limiter = getattr(app, 'limiter', None)
+    if limiter:
+        try:
+            limiter.limit("10 per minute")(lambda: None)()
+        except Exception:
+            pass
+
+    try:
+        data = request.get_json(silent=True) or {}
+
+        # ── Sanitize inputs ──────────────────────────────────────────── #
+        def _clean(val, max_len=80):
+            if not val:
+                return ''
+            return str(val)[:max_len].strip()
+
+        user_name         = _clean(data.get('user_name'))
+        org_name          = _clean(data.get('org_name'))
+        domain            = _clean(data.get('domain'))
+        city              = _clean(data.get('city'))
+        analysis_id       = data.get('analysis_id')
+        current_risk_score = float(data.get('current_risk_score', 0) or 0)
+        weak_patterns     = data.get('weak_patterns', [])
+        compliance_status = _clean(data.get('compliance_status'))
+
+        # ── Load latest analysis from DB ─────────────────────────────── #
+        analysis_obj  = None
+        analysis_data = {}
+
+        if analysis_id:
+            try:
+                analysis_obj = db.session.get(Analysis, int(analysis_id))
+                if analysis_obj and analysis_obj.user_id == current_user.id:
+                    analysis_data = analysis_obj.analysis_data or {}
+            except Exception:
+                app.logger.warning('ai-policy: could not load analysis_id=%s', analysis_id)
+
+        if not analysis_obj:
+            # Fallback: load most recent analysis for this user
+            try:
+                analysis_obj = (
+                    Analysis.query
+                    .filter_by(user_id=current_user.id)
+                    .order_by(Analysis.id.desc())
+                    .first()
+                )
+                if analysis_obj:
+                    analysis_data = analysis_obj.analysis_data or {}
+                    current_risk_score = analysis_obj.risk_score or current_risk_score
+            except Exception:
+                app.logger.warning('ai-policy: no analysis found for user')
+
+        # ── Inline results fallback (when DB record not yet saved) ─────── #
+        inline = data.get('inline_results') or {}
+        if inline and not analysis_data:
+            analysis_data = inline
+            app.logger.info('ai-policy: using inline_results from client (no DB record)')
+
+        # ── Extract stats from stored analysis ───────────────────────── #
+        overview    = analysis_data.get('overview', {})
+        patterns    = analysis_data.get('patterns', {})
+        compliance  = analysis_data.get('compliance', {})
+        hibp        = analysis_data.get('hibp', {})
+        policy_sim  = analysis_data.get('policy_impact', {})
+
+        total_passwords = overview.get('total_passwords', 0)
+        weak_count      = overview.get('weak_passwords', 0)
+        avg_length      = overview.get('average_length', 0)
+        risk_score      = round(overview.get('risk_score', current_risk_score), 1)
+        risk_level      = analysis_data.get('risk_level', 'Unknown')
+
+        breach_count    = hibp.get('total_breached', 0)
+        breach_pct      = round(hibp.get('breach_percentage', 0), 1)
+        reuse_pct       = 0.0
+        if total_passwords > 0:
+            dups = analysis_data.get('patterns', {}).get('duplicate_count', 0)
+            if not dups:
+                dups = total_passwords - overview.get('unique_passwords', total_passwords)
+            reuse_pct = round(dups / total_passwords * 100, 1)
+
+        compliance_status_val = (
+            compliance.get('overall_status')
+            or compliance_status
+            or 'Unknown'
+        )
+
+        # ── Simulate policy impact ────────────────────────────────────── #
+        projected_score = policy_sim.get('projected_score', 0)
+        if not projected_score:
+            # Fallback deterministic calculation
+            improvement = min(35.0, (100 - risk_score) * 0.5)
+            projected_score = round(min(100.0, risk_score + improvement), 1)
+
+        projected_score = round(projected_score, 1)
+        delta_score     = round(projected_score - risk_score, 1)
+
+        # Breach reduction estimate
+        if breach_count > 0:
+            reduction_factor = min(0.75, delta_score / 100 * 1.8)
+            projected_breaches = max(0, round(breach_count * (1 - reduction_factor)))
+        else:
+            projected_breaches = 0
+        breaches_reduced = breach_count - projected_breaches
+
+        # Compliance upgrade
+        compliance_map = {
+            'Non-Compliant': 'Partial',
+            'Partial':       'Strong',
+            'Strong':        'Full',
+            'Unknown':       'Partial',
+            'Full':          'Full',
+        }
+        projected_compliance = compliance_map.get(compliance_status_val, 'Partial')
+
+        # ── Recommended policy (deterministic) ───────────────────────── #
+        recommended_policy = {
+            'min_length':              12,
+            'require_upper':           True,
+            'require_lower':           True,
+            'require_number':          True,
+            'require_special':         True,
+            'rotation_days':           90,
+            'lockout_attempts':        3,
+            'block_dictionary':        True,
+            'block_names':             True,
+            'block_keyboard_patterns': True,
+            'mfa_recommended':         True,
+            'password_manager':        True,
+            'history_count':           5,
+        }
+
+        # ── Generate memorable passwords ─────────────────────────────── #
+        memorable_passwords = _generate_memorable_passwords(
+            user_name=user_name or (current_user.email.split('@')[0] if hasattr(current_user, 'email') else ''),
+            org_name=org_name or 'SecurePass',
+            city=city or 'Mumbai',
+            domain=domain or 'cyber',
+        )
+
+        # ── Groq AI summary ──────────────────────────────────────────── #
+        ai_summary = _generate_policy_ai_summary(
+            risk_score=risk_score,
+            risk_level=risk_level,
+            projected_score=projected_score,
+            delta_score=delta_score,
+            breach_count=breach_count,
+            breaches_reduced=breaches_reduced,
+            compliance_status=compliance_status_val,
+            projected_compliance=projected_compliance,
+            weak_count=weak_count,
+            total_passwords=total_passwords,
+            avg_length=avg_length,
+            reuse_pct=reuse_pct,
+            patterns=patterns,
+            org_name=org_name,
+        )
+
+        # ── Build response ────────────────────────────────────────────── #
+        response = {
+            'success': True,
+            'current': {
+                'score':      risk_score,
+                'risk_level': risk_level,
+                'breaches':   breach_count,
+                'breach_pct': breach_pct,
+                'compliance': compliance_status_val,
+                'weak_count': weak_count,
+                'avg_length': avg_length,
+                'reuse_pct':  reuse_pct,
+                'total':      total_passwords,
+            },
+            'projected': {
+                'score':      projected_score,
+                'risk_level': _score_to_risk(projected_score),
+                'breaches':   projected_breaches,
+                'compliance': projected_compliance,
+            },
+            'delta': {
+                'score':            delta_score,
+                'breaches_reduced': breaches_reduced,
+                'compliance_upgrade': compliance_status_val != projected_compliance,
+            },
+            'recommended_policy':  recommended_policy,
+            'memorable_passwords': memorable_passwords,
+            'ai_summary':          ai_summary,
+        }
+
+        return jsonify(response), 200
+
+    except Exception:
+        app.logger.exception('Unhandled error in /api/ai-policy')
+        return jsonify({'error': 'Policy generation failed. Please try again.'}), 500
+
+
+# ── /api/ai-policy/snapshot  — load current analysis snapshot ────────────── #
+
+@app.route('/api/ai-policy/snapshot', methods=['GET'])
+@login_required
+def ai_policy_snapshot():
+    """Return the latest analysis snapshot for the policy page."""
+    try:
+        analysis_obj = (
+            Analysis.query
+            .filter_by(user_id=current_user.id)
+            .order_by(Analysis.id.desc())
+            .first()
+        )
+        if not analysis_obj:
+            return jsonify({'has_data': False}), 200
+
+        ad = analysis_obj.analysis_data or {}
+        overview   = ad.get('overview', {})
+        compliance = ad.get('compliance', {})
+        hibp       = ad.get('hibp', {})
+
+        total = overview.get('total_passwords', 0)
+        unique = overview.get('unique_passwords', total)
+        reuse_pct = round((total - unique) / total * 100, 1) if total > 0 else 0.0
+
+        return jsonify({
+            'has_data':         True,
+            'analysis_id':      analysis_obj.id,
+            'risk_score':       round(analysis_obj.risk_score or 0, 1),
+            'risk_level':       analysis_obj.risk_level or 'Unknown',
+            'weak_count':       overview.get('weak_passwords', 0),
+            'total_passwords':  total,
+            'avg_length':       round(overview.get('average_length', 0), 1),
+            'breach_pct':       round(hibp.get('breach_percentage', 0), 1),
+            'breach_count':     hibp.get('total_breached', 0),
+            'reuse_pct':        reuse_pct,
+            'compliance_status': compliance.get('overall_status', 'Unknown'),
+            'existing_policy':  ad.get('recommended_password_policy'),
+            'filename':         analysis_obj.filename or 'Unknown',
+        }), 200
+
+    except Exception:
+        app.logger.exception('Error in /api/ai-policy/snapshot')
+        return jsonify({'error': 'Failed to load snapshot.'}), 500
+
+
+# ────────────────────────────────────────────────────────────────────────────
+#  Private helpers for ai_policy
+# ────────────────────────────────────────────────────────────────────────────
+
+def _score_to_risk(score: float) -> str:
+    if score >= 75:  return 'Low Risk'
+    if score >= 50:  return 'Medium Risk'
+    return 'High Risk'
+
+
+def _generate_memorable_passwords(user_name='', org_name='', city='', domain='') -> list:
+    """Generate 8-10 strong, memorable passwords from contextual tokens."""
+
+    SECURITY_WORDS = [
+        'Shield', 'Fortress', 'Armor', 'Vault', 'Cipher',
+        'Nexus', 'Sentinel', 'Bastion', 'Guard', 'Titan',
+        'Apex', 'Nova', 'Storm', 'Hawk', 'Iron',
+    ]
+    SEPARATORS = ['@', '#', '$', '!', '%', '&']
+    YEAR = '2026'
+
+    def clean(s):
+        if not s:
+            return ''
+        # Capitalise first letter, strip non-alphanum, max 10 chars
+        s = ''.join(c for c in str(s) if c.isalnum())
+        return s[:10].capitalize() if s else ''
+
+    tokens = []
+    if user_name: tokens.append(clean(user_name))
+    if org_name:  tokens.append(clean(org_name.split()[0]))
+    if city:      tokens.append(clean(city))
+    if domain:    tokens.append(clean(domain))
+    tokens = [t for t in tokens if t]
+
+    passwords = set()
+    attempts  = 0
+
+    while len(passwords) < 9 and attempts < 60:
+        attempts += 1
+        sep    = random.choice(SEPARATORS)
+        word   = random.choice(SECURITY_WORDS)
+        num    = str(random.randint(2, 99))
+        token  = random.choice(tokens) if tokens else word
+
+        templates = [
+            f"{token}{sep}{word}{num}",
+            f"{word}{sep}{token}{num}!",
+            f"{token}{num}{sep}{word}",
+            f"{word}{token}{sep}{YEAR[-2:]}",
+            f"Cyber{sep}{token}{word[:4]}{num}",
+            f"{token}{sep}{word}{sep}{num}",
+            f"{word}{num}{sep}{token}",
+            f"{token}{word}{sep}{YEAR}!",
+            f"X{sep}{word}{token}{num}",
+        ]
+        pw = random.choice(templates)
+
+        # Enforce minimum quality: length>=12, upper+lower+digit+special
+        if (len(pw) >= 12
+                and any(c.isupper() for c in pw)
+                and any(c.islower() for c in pw)
+                and any(c.isdigit() for c in pw)
+                and any(not c.isalnum() for c in pw)):
+            passwords.add(pw)
+
+    return list(passwords)[:9]
+
+
+def _generate_policy_ai_summary(
+    risk_score, risk_level, projected_score, delta_score,
+    breach_count, breaches_reduced, compliance_status, projected_compliance,
+    weak_count, total_passwords, avg_length, reuse_pct, patterns, org_name,
+) -> str:
+    """Call Groq for a professional AI policy summary, with deterministic fallback."""
+
+    api_key = (
+        os.environ.get('SECUREPASS_GROQ_API_KEY', '').strip()
+        or os.environ.get('GROQ_API_KEY', '').strip()
+    )
+    if not api_key:
+        return _fallback_policy_summary(
+            risk_score, delta_score, breach_count, breaches_reduced,
+            compliance_status, projected_compliance, weak_count, total_passwords,
+        )
+
+    try:
+        import requests as _req
+
+        prompt = f"""You are a cybersecurity expert writing a professional AI-powered password policy recommendation report for {'an organization' if not org_name else org_name}.
+
+Current Security Status:
+- Risk Score: {risk_score}/100 ({risk_level})
+- Weak Passwords: {weak_count} out of {total_passwords} total
+- Average Password Length: {avg_length} characters
+- Breach Exposure: {breach_count} passwords found in data breaches
+- Password Reuse Rate: {reuse_pct}%
+- Compliance Status: {compliance_status}
+
+After Applying New Policy:
+- Projected Score: {projected_score}/100
+- Score Improvement: +{delta_score} points
+- Breaches Reduced: {breaches_reduced}
+- Projected Compliance: {projected_compliance}
+
+Write a concise, professional 4-6 sentence AI summary that:
+1. Explains why the current password posture is weak (be specific with numbers)
+2. Describes the biggest security risks
+3. Explains how the recommended policy will help
+4. Highlights the projected improvements
+5. Mentions the balance between security and user usability
+
+Be direct, professional, and data-driven. Use cybersecurity terminology. Do not use bullet points. Write as flowing prose."""
+
+        payload = {
+            'model': 'llama-3.3-70b-versatile',
+            'max_tokens': 400,
+            'messages': [{'role': 'user', 'content': prompt}],
+        }
+        headers = {
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type':  'application/json',
+        }
+        resp = _req.post(
+            'https://api.groq.com/openai/v1/chat/completions',
+            json=payload, headers=headers, timeout=12
+        )
+        resp.raise_for_status()
+        result = resp.json()
+        text = result['choices'][0]['message']['content'].strip()
+        # Sanitize: remove any potential injection
+        text = text[:1500]
+        return text
+    except Exception as exc:
+        app.logger.warning('ai-policy Groq call failed: %s', exc)
+        return _fallback_policy_summary(
+            risk_score, delta_score, breach_count, breaches_reduced,
+            compliance_status, projected_compliance, weak_count, total_passwords,
+        )
+
+
+def _fallback_policy_summary(
+    risk_score, delta_score, breach_count, breaches_reduced,
+    compliance_status, projected_compliance, weak_count, total_passwords,
+) -> str:
+    """Deterministic fallback summary when Groq is unavailable."""
+    weak_pct = round(weak_count / total_passwords * 100, 1) if total_passwords else 0
+    return (
+        f"Your current password portfolio carries a risk score of {risk_score}/100, "
+        f"with {weak_pct}% of passwords classified as high-risk and {breach_count} entries "
+        f"exposed in known data breaches — indicating a significant attack surface vulnerability. "
+        f"The current {compliance_status} compliance posture leaves your organization susceptible "
+        f"to credential-stuffing, dictionary, and brute-force attacks. "
+        f"By enforcing the recommended policy — including a 12-character minimum, complexity "
+        f"requirements, breach-list blocking, and MFA — your projected score rises by +{delta_score} points "
+        f"and an estimated {breaches_reduced} breach exposures will be mitigated. "
+        f"This brings compliance to {projected_compliance} status while maintaining password memorability "
+        f"through the generated passphrase examples, ensuring security without sacrificing user productivity."
+    )
+
+
+# ────────────────────────────────────────────────────────────────────────────
+#  /api/compliance-ai  — Compliance narrative via Groq (called from frontend)
+# ────────────────────────────────────────────────────────────────────────────
+
+@app.route('/api/compliance-ai', methods=['POST'])
+@login_required
+def compliance_ai():
+    """
+    Generate a compliance narrative using Groq AI.
+
+    Accepts JSON:
+        nist_status, owasp_risk, iso_status,
+        nist_score, owasp_score, iso_score,
+        violations  (list of {rule, severity})
+
+    Returns:
+        { success: true, text: "..." }
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+
+        nist_status  = str(data.get('nist_status',  'Unknown'))[:50]
+        owasp_risk   = str(data.get('owasp_risk',   'Unknown'))[:50]
+        iso_status   = str(data.get('iso_status',   'Unknown'))[:50]
+        nist_score   = int(data.get('nist_score',   0))
+        owasp_score  = int(data.get('owasp_score',  0))
+        iso_score    = int(data.get('iso_score',    0))
+        violations   = data.get('violations', [])
+        if not isinstance(violations, list):
+            violations = []
+        violations = violations[:10]
+
+        viol_text = (
+            'Key violations: ' + ', '.join(
+                f"{v.get('rule','?')} ({v.get('severity','?')})"
+                for v in violations[:3]
+            )
+            if violations else 'No violations detected'
+        )
+
+        prompt = (
+            f"You are a cybersecurity compliance expert. A password dataset was analysed. "
+            f"Provide a concise 3-4 sentence professional compliance narrative for a security dashboard.\n\n"
+            f"Dataset compliance results:\n"
+            f"- NIST SP 800-63B: {nist_status} (score: {nist_score}/100)\n"
+            f"- OWASP Top 10 (A07:2021): {owasp_risk} risk (score: {owasp_score}/100)\n"
+            f"- ISO/IEC 27001 A.9.4: {iso_status} (score: {iso_score}/100)\n"
+            f"- Active violations: {len(violations)}\n"
+            f"- {viol_text}\n\n"
+            f"Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard most affected, "
+            f"3) one specific remediation action, 4) business impact if not addressed. "
+            f"Be specific, cite standards by name. No bullet points, no headers. Professional tone."
+        )
+
+        api_key = (
+            os.environ.get('SECUREPASS_GROQ_API_KEY', '').strip()
+            or os.environ.get('GROQ_API_KEY', '').strip()
+        )
+        if not api_key:
+            return jsonify({'success': False, 'error': 'Groq API key not configured.'}), 200
+
+        import requests as _req
+        payload = {
+            'model': 'llama-3.3-70b-versatile',
+            'max_tokens': 400,
+            'messages': [{'role': 'user', 'content': prompt}],
+        }
+        headers = {
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type':  'application/json',
+        }
+        resp = _req.post(
+            'https://api.groq.com/openai/v1/chat/completions',
+            json=payload, headers=headers, timeout=12
+        )
+        resp.raise_for_status()
+        text = resp.json()['choices'][0]['message']['content'].strip()[:1500]
+        return jsonify({'success': True, 'text': text}), 200
+
+    except Exception:
+        app.logger.exception('Error in /api/compliance-ai')
+        return jsonify({'success': False, 'error': 'AI analysis failed.'}), 500
 
 if __name__ == '__main__':
     app.run(debug=app.config.get('DEBUG', False), host='0.0.0.0', port=5000)

@@ -10,6 +10,10 @@ WARNING: In development, this drops all existing tables and recreates them.
 Usage:
     python init_db.py
 """
+import os
+os.environ.setdefault('FLASK_ENV', 'development')
+os.environ.setdefault('SECRET_KEY', 'init-temp-key')
+
 from app import app
 from models import db, User, Analysis
 

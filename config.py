@@ -20,12 +20,8 @@ class Config:
     # ------------------------------------------------------------------ #
     #  Security                                                            #
     # ------------------------------------------------------------------ #
-    SECRET_KEY = os.environ.get('SECRET_KEY')
-    if not SECRET_KEY:
-        raise ValueError(
-            "SECRET_KEY environment variable is not set. "
-            "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
-        )
+    # Falls back to dev key if not set; ProductionConfig enforces this strictly
+    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-only-insecure-key-change-in-production'
 
     # CSRF (requires flask-wtf; enable when forms are wired up)
     WTF_CSRF_ENABLED = True
@@ -103,9 +99,13 @@ class ProductionConfig(Config):
 
     # Force Postgres (or other URL) in production; SQLite not suitable
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///securepass.db'
+
     def __init__(self):
-        if not self.SQLALCHEMY_DATABASE_URI:
-            raise ValueError("DATABASE_URL environment variable must be set in production.")
+        if not os.environ.get('SECRET_KEY'):
+            raise ValueError(
+                "SECRET_KEY environment variable must be set in production. "
+                "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+            )
 
 class TestingConfig(Config):
     """Unit / integration test config."""
