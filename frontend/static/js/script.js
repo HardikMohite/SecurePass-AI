@@ -1861,6 +1861,7 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
         if (btn)     btn.style.display     = 'flex';
 
         _aipFillBefore(snap);
+        _aipSetupKeyword();
 
         if (!_aipLoaded) {
             await _aipGenerate(snap);
@@ -1944,12 +1945,15 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
         }, 1400);
 
         try {
+            const orgKeywordEl = document.getElementById('aipOrgKeyword');
+            const orgKeyword = (orgKeywordEl && orgKeywordEl.value.trim()) || '';
+
             const payload = {
                 analysis_id:        snap.analysis_id,
                 current_risk_score: snap.risk_score,
                 compliance_status:  snap.compliance_status,
                 user_name: (S.user && (S.user.username || (S.user.email || '').split('@')[0])) || '',
-                org_name:  '',
+                org_name:  orgKeyword,
                 city:      'Mumbai',
                 domain:    'cyber',
                 // Pass full inline results when DB record may not exist yet
@@ -2075,6 +2079,126 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
                 <span style="flex:1;">${esc(r.label)}</span>
                 <span style="font-family:var(--font-mono);font-size:12px;color:${r.on ? 'var(--accent)' : '#ff5f57'};">${esc(r.val)}</span>
             </div>`).join('');
+        if (window.lucide) lucide.createIcons();
+    }
+
+    /* ── Org Keyword Password Generator ─────────────────────────────────── */
+
+    function _aipSetupKeyword() {
+        const btn = document.getElementById('aipKeywordBtn');
+        const inp = document.getElementById('aipOrgKeyword');
+        if (!btn || !inp) return;
+        inp.addEventListener('keydown', e => { if (e.key === 'Enter') btn.click(); });
+        btn.addEventListener('click', () => {
+            const kw = inp.value.trim();
+            if (!kw) { toast('Enter an organisation keyword first.', 'error'); return; }
+            _aipGenerateKeywordPasswords(kw);
+        });
+    }
+
+    function _leetVariants(word) {
+        const maps = [
+            { a: 'a', l: '@' }, { a: 'e', l: '3' }, { a: 'i', l: '1' },
+            { a: 'o', l: '0' }, { a: 's', l: '$' }, { a: 't', l: '7' },
+            { a: 'g', l: '9' }, { a: 'b', l: '6' }, { a: 'l', l: '1' },
+        ];
+        const w = word.toLowerCase();
+        const variants = new Set();
+
+        variants.add(word.charAt(0).toUpperCase() + word.slice(1));
+        variants.add(word.toUpperCase());
+
+        for (const m of maps) {
+            if (w.includes(m.a)) {
+                variants.add(w.replaceAll(m.a, m.l));
+                variants.add((w.charAt(0).toUpperCase() + w.slice(1)).replaceAll(m.a, m.l));
+                variants.add(w.toUpperCase().replaceAll(m.a.toUpperCase(), m.l));
+            }
+        }
+
+        // Apply all substitutions at once for the "full leet" variant
+        let full = w;
+        for (const m of maps) full = full.replaceAll(m.a, m.l);
+        variants.add(full);
+        variants.add(full.toUpperCase());
+        variants.add(full.charAt(0).toUpperCase() + full.slice(1));
+
+        return [...variants].filter(v => v !== word).slice(0, 9);
+    }
+
+    function _aipGenerateKeywordPasswords(keyword) {
+        const preview = document.getElementById('aipLeetPreview');
+        const tagsEl  = document.getElementById('aipLeetTags');
+        const listEl  = document.getElementById('aipKeywordPwList');
+        if (!preview || !tagsEl || !listEl) return;
+
+        const variants = _leetVariants(keyword);
+
+        // Show leet tag strip with colour coding
+        const tagColors = ['var(--accent)', '#febc2e', '#ff5f57', '#00b86e'];
+        tagsEl.innerHTML = variants.map((v, i) =>
+            `<span style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:4px;padding:3px 9px;font-family:var(--font-mono);font-size:12px;color:${tagColors[i % tagColors.length]};">${esc(v)}</span>`
+        ).join('');
+
+        const SECURITY_WORDS = ['Shield','Fortress','Vault','Cipher','Sentinel','Bastion','Guard','Titan','Apex','Nova','Storm','Hawk'];
+        const SEPS = ['@','#','$','!','%','&','*'];
+        const YEAR = '26';
+
+        const passwords = new Set();
+        let attempts = 0;
+        while (passwords.size < 9 && attempts < 120) {
+            attempts++;
+            const v    = variants[Math.floor(Math.random() * variants.length)] || keyword;
+            const word = SECURITY_WORDS[Math.floor(Math.random() * SECURITY_WORDS.length)];
+            const sep  = SEPS[Math.floor(Math.random() * SEPS.length)];
+            const num  = String(Math.floor(Math.random() * 98) + 2);
+
+            const templates = [
+                `${v}${sep}${word}${num}`,
+                `${word}${sep}${v}${num}!`,
+                `${v}${num}${sep}${word}`,
+                `${word}${v}${sep}${YEAR}`,
+                `Cyber${sep}${v}${word.slice(0,4)}${num}`,
+                `${v}${sep}${word}${sep}${num}`,
+                `${word}${num}${sep}${v}`,
+                `${v}${word}${sep}${YEAR}!`,
+                `Sec${sep}${v}${word.slice(0,3)}${num}`,
+            ];
+            const pw = templates[Math.floor(Math.random() * templates.length)];
+
+            if (pw.length >= 12
+                && /[A-Z]/.test(pw)
+                && /[a-z]/.test(pw)
+                && /[0-9]/.test(pw)
+                && /[^A-Za-z0-9]/.test(pw)) {
+                passwords.add(pw);
+            }
+        }
+
+        listEl.innerHTML = [...passwords].map(pw => {
+            const safe = esc(pw);
+            return `<div class="aip-pw-item" data-pw="${safe}">
+                <span>${safe}</span>
+                <span class="aip-pw-copy">Click to copy</span>
+            </div>`;
+        }).join('');
+
+        listEl.querySelectorAll('.aip-pw-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const pw = item.getAttribute('data-pw');
+                navigator.clipboard.writeText(pw).catch(() => {});
+                item.classList.add('aip-copied');
+                const span = item.querySelector('.aip-pw-copy');
+                if (span) span.textContent = '✓ Copied!';
+                setTimeout(() => {
+                    item.classList.remove('aip-copied');
+                    if (span) span.textContent = 'Click to copy';
+                }, 1800);
+            });
+        });
+
+        preview.style.display = 'block';
+        toast(`Generated passwords using "${keyword}" leet variants!`, 'success');
         if (window.lucide) lucide.createIcons();
     }
 
