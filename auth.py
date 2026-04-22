@@ -34,6 +34,34 @@ auth_bp = Blueprint('auth', __name__, url_prefix='/api/auth')
 
 
 # ────────────────────────────────────────────────────────────────────────────
+#  Session activity tracker — keeps last_login current on every visit
+# ────────────────────────────────────────────────────────────────────────────
+
+@auth_bp.before_app_request
+def refresh_last_login():
+    """
+    Update last_login timestamp on every authenticated request,
+    throttled to at most once per hour to avoid excessive DB writes.
+    Skips static files and unauthenticated requests.
+    """
+    if not current_user.is_authenticated:
+        return
+    if request.path.startswith('/static'):
+        return
+
+    now = datetime.utcnow()
+    last = getattr(current_user, 'last_login', None)
+
+    # Only write if last_login is unset or more than 60 minutes old
+    if last is None or (now - last).total_seconds() > 3600:
+        try:
+            current_user.last_login = now
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+
+# ────────────────────────────────────────────────────────────────────────────
 #  Helpers
 # ────────────────────────────────────────────────────────────────────────────
 

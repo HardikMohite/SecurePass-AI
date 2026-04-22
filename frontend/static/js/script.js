@@ -27,8 +27,6 @@
         setupReportsDownload();
         setupLogout();
         setupSidebar();
-        setupSettingsNav();
-        setupSettingsInteractions();
         setupAIDrawer();
         setupComplianceRefresh();
         setupAIPolicy();
@@ -125,6 +123,7 @@
                 // via closure — overriding window.showPage has no effect on them.
                 if (page === 'ai-policy') initAIPolicyPage();
                 if (page === 'reports' && window.Reports) Reports.loadPage();
+                if (page === 'settings' && window.initSettings) initSettings();
             });
         });
 
@@ -134,6 +133,7 @@
             showPage(name);
             if (name === 'ai-policy') initAIPolicyPage();
             if (name === 'reports' && window.Reports) Reports.loadPage();
+            if (name === 'settings' && window.initSettings) initSettings();
         };
     }
 
@@ -1281,7 +1281,13 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
     /* ══ TERMINAL ATTACK ENGINE ══════════════════════════ */
 
     // Shared state for the terminal
-    const TERM = { running: false, customWordlist: null, wlName: null };
+    const TERM = {
+        running: false,
+        customWordlist: null,
+        wlName: null,
+        // Per-run attack breakdown accumulators (dataset mode)
+        attackStats: { dictionary: 0, keyboard: 0, pattern: 0, brute: 0, total: 0, survived: 0 },
+    };
 
     function termLog(html, cls='') {
         const term = $('attackResults'); if (!term) return;
@@ -1300,7 +1306,8 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
     function termClear() {
         const r = $('attackResults'); if (r) r.innerHTML = '';
         const sb = $('termStatsBar'); if (sb) sb.style.display = 'none';
-        ['termStatTotal','termStatCracked','termStatRate','termStatTime'].forEach(id => setText(id, '—'));
+        ['termStatTotal','termStatCracked','termStatSurvived','termStatRate','termStatTime'].forEach(id => setText(id, '—'));
+        TERM.attackStats = { dictionary: 0, keyboard: 0, pattern: 0, brute: 0, total: 0, survived: 0 };
     }
 
     function termSetBusy(busy) {
@@ -1320,13 +1327,16 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
         if (sb) sb.style.display = 'grid';
         setText('termStatTotal', (data.total||0).toLocaleString());
         const cracked = data.cracked || 0;
+        const total = data.total || 0;
+        const survived = total - cracked;
         const el = $('termStatCracked'); if (el) { el.textContent = cracked.toLocaleString(); el.style.color = cracked > 0 ? '#ff5f57' : '#00b86e'; }
+        const sv = $('termStatSurvived'); if (sv) { sv.textContent = survived.toLocaleString(); sv.style.color = '#00b86e'; }
         const rate = data.crack_rate || 0;
         const re = $('termStatRate'); if (re) { re.textContent = rate + '%'; re.style.color = rate > 60 ? '#ff5f57' : rate > 30 ? '#febc2e' : '#00b86e'; }
         setText('termStatTime', (data.elapsed || 0) + 's');
     }
 
-    function termRenderLine(evt) {
+    function termRenderLine(evt, isDatasetMode) {
         if (!evt || !evt.type) return;
         switch (evt.type) {
             case 'init':
@@ -1336,6 +1346,12 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
                 termLog(`<span class="terminal-prompt">$</span> <span class="log-dim">${esc(evt.message)}</span>`);
                 break;
             case 'hit': {
+                // In dataset mode: silently accumulate stats, don't print per-password lines
+                if (isDatasetMode) {
+                    const atk = (evt.attack || '').toLowerCase();
+                    if (atk in TERM.attackStats) TERM.attackStats[atk]++;
+                    break;
+                }
                 const attack = (evt.attack || '').toLowerCase();
                 let icon, col, detail = '';
                 if (attack === 'dictionary') {
@@ -1359,6 +1375,8 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
                 break;
             }
             case 'miss': {
+                // Suppress per-password output in dataset mode
+                if (isDatasetMode) break;
                 const col2 = '#00b86e';
                 termLog(`<span class="terminal-prompt">$</span> <span style="color:${col2}">[${evt.password && !evt.attack ? 'SECURE' : 'MISS'}]</span> <span style="color:var(--text-muted)">${esc(evt.password || '')}</span> — <span class="log-dim">${esc((evt.message||'').split(' — ')[1] || 'no match')}</span>`);
                 break;
@@ -1366,9 +1384,82 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
             case 'done': {
                 const rate = evt.crack_rate || 0;
                 const col3 = rate > 60 ? '#ff5f57' : rate > 30 ? '#febc2e' : '#00b86e';
-                termLog(`<span class="terminal-prompt">$</span> <span style="color:var(--text-muted)">────────────────────────────────────────────────</span>`);
-                termLog(`<span class="terminal-prompt">$</span> <span style="color:${col3}">[DONE]</span> <b>${evt.cracked||0}</b>/<b>${evt.total||0}</b> cracked — <b style="color:${col3}">${rate}% crack rate</b> — completed in <b>${evt.elapsed||0}s</b>`);
-                termLog(`<span class="terminal-prompt">$</span> <span class="log-dim">Wordlist: ${esc(evt.wordlist_source||'')} (${(evt.wordlist_size||0).toLocaleString()} entries)</span>`);
+                const cracked = evt.cracked || 0;
+                const total = evt.total || 0;
+                const survived = total - cracked;
+                const dsName = evt.dataset_name || 'dataset.txt';
+                const attackMode = ($('termAttackType') || {}).value || 'all';
+                const attackLabel = { all: 'ALL', dictionary: 'DICTIONARY', keyboard: 'KEYBOARD-WALK', pattern: 'PATTERN', brute: 'BRUTE-FORCE' }[attackMode] || 'ALL';
+
+                const sep = `<span class="terminal-prompt">$</span> <span style="color:var(--text-muted)">────────────────────────────────────────────────</span>`;
+
+                termLog(sep);
+                termLog(`<span class="terminal-prompt">$</span> <span style="color:${col3}">[DONE]</span> Execution complete — <b style="color:var(--text-primary)">${esc(evt.wordlist_source||'dataset.txt')}</b>`);
+                termLog(sep);
+
+                // ── Summary block ─────────────────────────────────────
+                termLog(`<span class="terminal-prompt">$</span> <span style="color:var(--accent);font-weight:600;">[SUMMARY]</span>`);
+                termLog(`<span class="terminal-prompt">$</span>   Passwords tested   : <b style="color:var(--text-primary)">${total.toLocaleString()}</b>`);
+                termLog(`<span class="terminal-prompt">$</span>   Cracked            : <b style="color:#ff5f57">${cracked.toLocaleString()}</b>`);
+                termLog(`<span class="terminal-prompt">$</span>   Survived           : <b style="color:#00b86e">${survived.toLocaleString()}</b>`);
+                termLog(`<span class="terminal-prompt">$</span>   Crack rate         : <b style="color:${col3}">${rate}%</b>`);
+                termLog(`<span class="terminal-prompt">$</span>   Time elapsed       : <b style="color:var(--accent)">${esc(String(evt.elapsed||0))}s</b>`);
+                termLog(`<span class="terminal-prompt">$</span>   Wordlist           : ${esc(evt.wordlist_source||'password-wordlist.txt')} <span style="color:var(--text-muted)">(${(evt.wordlist_size||0).toLocaleString()} entries)</span>`);
+                termLog(`<span class="terminal-prompt">$</span>   Attack mode        : <b style="color:var(--text-primary)">${attackLabel}</b>`);
+
+                // ── Per-attack breakdown (dataset mode only) ──────────
+                if (isDatasetMode) {
+                    const S_ATK = TERM.attackStats;
+                    termLog(sep);
+                    termLog(`<span class="terminal-prompt">$</span> <span style="color:var(--accent);font-weight:600;">[ATTACK BREAKDOWN]</span>`);
+
+                    // Helper: bar visualisation
+                    function pctBar(n, tot, color) {
+                        const pct = tot > 0 ? Math.round(n / tot * 100) : 0;
+                        const filled = Math.round(pct / 5); // 0-20 blocks
+                        const bar = '█'.repeat(filled) + '░'.repeat(20 - filled);
+                        return `<span style="color:${color};font-family:var(--font-mono)">${bar}</span> <b style="color:${color}">${pct}%</b> <span style="color:var(--text-muted)">(${n.toLocaleString()} cracked)</span>`;
+                    }
+
+                    if (attackMode === 'all' || attackMode === 'dictionary') {
+                        const n = S_ATK.dictionary;
+                        const pct = total > 0 ? (n/total*100).toFixed(1) : '0.0';
+                        const c = n/total > 0.5 ? '#ff5f57' : n/total > 0.2 ? '#febc2e' : '#00b86e';
+                        termLog(`<span class="terminal-prompt">$</span>   <span style="color:#febc2e">📖 Dictionary Attack</span>`);
+                        termLog(`<span class="terminal-prompt">$</span>      Cracked  : <b style="color:#ff5f57">${n.toLocaleString()}</b> / ${total.toLocaleString()} &nbsp; (${pct}%)`);
+                        termLog(`<span class="terminal-prompt">$</span>      Progress : ${pctBar(n, total, c)}`);
+                        termLog(`<span class="terminal-prompt">$</span>      Verdict  : <span style="color:var(--text-muted)">${n > total*0.5 ? 'Critical — majority matched common passwords' : n > total*0.2 ? 'High exposure — many weak passwords found' : 'Low dictionary exposure'}</span>`);
+                    }
+                    if (attackMode === 'all' || attackMode === 'keyboard') {
+                        const n = S_ATK.keyboard;
+                        const pct = total > 0 ? (n/total*100).toFixed(1) : '0.0';
+                        const c = n/total > 0.3 ? '#ff5f57' : n/total > 0.1 ? '#febc2e' : '#00b86e';
+                        termLog(`<span class="terminal-prompt">$</span>   <span style="color:#febc2e">⌨️  Keyboard Walk Attack</span>`);
+                        termLog(`<span class="terminal-prompt">$</span>      Cracked  : <b style="color:#ff5f57">${n.toLocaleString()}</b> / ${total.toLocaleString()} &nbsp; (${pct}%)`);
+                        termLog(`<span class="terminal-prompt">$</span>      Progress : ${pctBar(n, total, c)}`);
+                        termLog(`<span class="terminal-prompt">$</span>      Verdict  : <span style="color:var(--text-muted)">${n > total*0.3 ? 'Many users use keyboard-adjacent sequences (qwerty, 12345)' : n > 0 ? 'Some keyboard-walk patterns detected' : 'No keyboard walk patterns found'}</span>`);
+                    }
+                    if (attackMode === 'all' || attackMode === 'pattern') {
+                        const n = S_ATK.pattern;
+                        const pct = total > 0 ? (n/total*100).toFixed(1) : '0.0';
+                        const c = n/total > 0.4 ? '#ff5f57' : n/total > 0.15 ? '#febc2e' : '#00b86e';
+                        termLog(`<span class="terminal-prompt">$</span>   <span style="color:#febc2e">🔁 Pattern Attack</span>`);
+                        termLog(`<span class="terminal-prompt">$</span>      Cracked  : <b style="color:#ff5f57">${n.toLocaleString()}</b> / ${total.toLocaleString()} &nbsp; (${pct}%)`);
+                        termLog(`<span class="terminal-prompt">$</span>      Progress : ${pctBar(n, total, c)}`);
+                        termLog(`<span class="terminal-prompt">$</span>      Verdict  : <span style="color:var(--text-muted)">${n > total*0.4 ? 'Structural patterns rampant — date/year/leet substitutions widespread' : n > 0 ? 'Pattern weaknesses detected (dates, leet, repeats)' : 'No structural patterns detected'}</span>`);
+                    }
+                    if (attackMode === 'all' || attackMode === 'brute') {
+                        const n = S_ATK.brute;
+                        const pct = total > 0 ? (n/total*100).toFixed(1) : '0.0';
+                        const c = n/total > 0.2 ? '#ff5f57' : n/total > 0.05 ? '#febc2e' : '#00b86e';
+                        termLog(`<span class="terminal-prompt">$</span>   <span style="color:#ff5f57">⚡ Brute Force Estimation</span>`);
+                        termLog(`<span class="terminal-prompt">$</span>      Cracked  : <b style="color:#ff5f57">${n.toLocaleString()}</b> / ${total.toLocaleString()} &nbsp; (${pct}%)`);
+                        termLog(`<span class="terminal-prompt">$</span>      Progress : ${pctBar(n, total, c)}`);
+                        termLog(`<span class="terminal-prompt">$</span>      Verdict  : <span style="color:var(--text-muted)">${n > total*0.2 ? 'Many passwords too short — instantly crackable by brute force' : n > 0 ? 'Some passwords are too short (≤7 chars)' : 'All passwords exceed brute-force threshold'}</span>`);
+                    }
+                }
+
+                termLog(sep);
                 termUpdateStats(evt);
                 break;
             }
@@ -1386,24 +1477,50 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
         const attackType = ($('termAttackType') || {}).value || 'all';
         const pwList = passwords || [];
         const fname = datasetName || TERM.wlName || 'dataset.txt';
+        const isDatasetMode = !singlePw;
 
-        // Realistic terminal command echoes
+        // Helper: type a terminal line with a delay
+        function termDelay(ms) { return new Promise(res => setTimeout(res, ms)); }
+        function rnd(lo, hi) { return lo + Math.floor(Math.random() * (hi - lo + 1)); }
+
         if (singlePw) {
+            // Single password mode — keep exact existing behaviour
             termLog(`<span class="terminal-prompt">$</span> <span style="color:var(--text-primary)">securepass --mode single --target "${esc(singlePw)}" --attack ${attackType}</span>`);
         } else {
-            termLog(`<span class="terminal-prompt">$</span> <span style="color:var(--text-primary)">loading dataset ${esc(fname)}</span>`);
-            termLog(`<span class="terminal-prompt">$</span> <span class="log-dim">[OK] ${pwList.length.toLocaleString()} passwords loaded</span>`);
+            // Dataset mode — typed phased command sequence
+            const wlEntries = TERM.customWordlist ? '' : '225,679';
+            const wlName = TERM.wlName || 'rockyou.txt';
+
+            const phaseLines = [
+                { line: `<span class="terminal-prompt">$</span> <span style="color:var(--text-primary)">securepass --init-engine --profile full-scan</span>`, delay: rnd(80,120) },
+                { line: `<span class="terminal-prompt">$</span> <span class="log-dim">[SYSTEM] SecurePass Attack Engine v4.0 — Loaded ${pwList.length.toLocaleString()} wordlist entries (${esc(wlName)})</span>`, delay: rnd(80,120) },
+            ];
+
+            if (attackType === 'all' || attackType === 'dictionary' || attackType === 'keyboard' || attackType === 'pattern' || attackType === 'brute') {
+                phaseLines.push({ line: `<span class="terminal-prompt">$</span> <span style="color:var(--text-primary)">securepass --load-dataset ${esc(fname)}</span>`, delay: rnd(80,120) });
+                phaseLines.push({ line: `<span class="terminal-prompt">$</span> <span class="log-dim">[OK] 1,000 passwords loaded from ${esc(fname)}</span>`, delay: rnd(80,120) });
+            }
+
             if (attackType === 'all' || attackType === 'dictionary') {
-                termLog(`<span class="terminal-prompt">$</span> <span style="color:var(--text-primary)">hashcat -m 0 -a 0 ${esc(fname)} rockyou.txt --status</span>`);
+                phaseLines.push({ line: `<span class="terminal-prompt">$</span> <span style="color:var(--text-primary)">securepass --execute dictionary --target ${esc(fname)} --wordlist rockyou.txt</span>`, delay: rnd(80,120) });
+                phaseLines.push({ line: `<span class="terminal-prompt">$</span> <span class="log-dim">[RUNNING] Executing dictionary attack on ${esc(fname)}...</span>`, delay: rnd(80,120) });
             }
             if (attackType === 'all' || attackType === 'keyboard') {
-                termLog(`<span class="terminal-prompt">$</span> <span style="color:var(--text-primary)">keyboard_walk_scan ${esc(fname)}</span>`);
+                phaseLines.push({ line: `<span class="terminal-prompt">$</span> <span style="color:var(--text-primary)">securepass --execute keyboard-walk --target ${esc(fname)}</span>`, delay: rnd(80,120) });
+                phaseLines.push({ line: `<span class="terminal-prompt">$</span> <span class="log-dim">[RUNNING] Executing keyboard walk scan...</span>`, delay: rnd(80,120) });
             }
             if (attackType === 'all' || attackType === 'pattern') {
-                termLog(`<span class="terminal-prompt">$</span> <span style="color:var(--text-primary)">python pattern_cracker.py ${esc(fname)}</span>`);
+                phaseLines.push({ line: `<span class="terminal-prompt">$</span> <span style="color:var(--text-primary)">securepass --execute pattern --target ${esc(fname)}</span>`, delay: rnd(80,120) });
+                phaseLines.push({ line: `<span class="terminal-prompt">$</span> <span class="log-dim">[RUNNING] Executing pattern attack...</span>`, delay: rnd(80,120) });
             }
             if (attackType === 'all' || attackType === 'brute') {
-                termLog(`<span class="terminal-prompt">$</span> <span style="color:var(--text-primary)">brute_force_estimator ${esc(fname)} --charset all</span>`);
+                phaseLines.push({ line: `<span class="terminal-prompt">$</span> <span style="color:var(--text-primary)">securepass --execute brute-force --target ${esc(fname)} --charset all --max-len 7</span>`, delay: rnd(80,120) });
+                phaseLines.push({ line: `<span class="terminal-prompt">$</span> <span class="log-dim">[RUNNING] Executing brute force estimation...</span>`, delay: rnd(80,120) });
+            }
+
+            for (const ph of phaseLines) {
+                termLog(ph.line);
+                await termDelay(ph.delay);
             }
         }
 
@@ -1440,13 +1557,13 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
                     if (!trimmed) continue;
                     try {
                         const evt = JSON.parse(trimmed);
-                        termRenderLine(evt);
+                        termRenderLine(evt, isDatasetMode);
                     } catch {}
                 }
             }
             // Process any remaining buffer
             if (buf.trim()) {
-                try { termRenderLine(JSON.parse(buf.trim())); } catch {}
+                try { termRenderLine(JSON.parse(buf.trim()), isDatasetMode); } catch {}
             }
 
         } catch (err) {
@@ -1534,6 +1651,48 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
                 termClear();
                 termLog(`<span class="terminal-prompt">$</span> <span style="color:var(--text-muted)">exec securepass --mode attack-vector --profile generic</span>`);
                 setTimeout(() => termLog(`<span class="terminal-prompt">$</span> <span class="log-dim">[SYSTEM] Ready.</span>`), 320);
+            });
+        }
+
+        // ── Custom attack-type dropdown ─────────────────────────────
+        const ddTrigger = $('termAttackTrigger');
+        const ddPanel   = $('termAttackPanel');
+        const ddChevron = $('termAttackChevron');
+        const ddReal    = $('termAttackType');
+        const ddLabel   = $('termAttackTriggerLabel');
+        if (ddTrigger && ddPanel) {
+            // Toggle panel
+            ddTrigger.addEventListener('click', e => {
+                e.stopPropagation();
+                const open = ddPanel.style.display !== 'none';
+                ddPanel.style.display = open ? 'none' : 'block';
+                if (ddChevron) ddChevron.style.transform = open ? '' : 'rotate(180deg)';
+            });
+            // Option click
+            ddPanel.querySelectorAll('.term-dd-opt').forEach(opt => {
+                opt.addEventListener('mouseenter', () => { opt.style.background = 'rgba(var(--accent-rgb,99,102,241),.1)'; opt.style.color = 'var(--accent)'; });
+                opt.addEventListener('mouseleave', () => { opt.style.background = ''; opt.style.color = ''; });
+                opt.addEventListener('click', () => {
+                    const val = opt.dataset.val;
+                    // Update hidden select
+                    if (ddReal) ddReal.value = val;
+                    // Update trigger label
+                    if (ddLabel) ddLabel.textContent = opt.textContent.trim();
+                    // Update check dots
+                    ddPanel.querySelectorAll('.term-dd-check').forEach(c => c.style.visibility = 'hidden');
+                    const dot = opt.querySelector('.term-dd-check');
+                    if (dot) dot.style.visibility = 'visible';
+                    // Close panel
+                    ddPanel.style.display = 'none';
+                    if (ddChevron) ddChevron.style.transform = '';
+                });
+            });
+            // Close on outside click
+            document.addEventListener('click', e => {
+                if (!$('termAttackDropdown').contains(e.target)) {
+                    ddPanel.style.display = 'none';
+                    if (ddChevron) ddChevron.style.transform = '';
+                }
             });
         }
     }

@@ -35,6 +35,7 @@ from flask_login import LoginManager, current_user, login_required
 from werkzeug.utils import secure_filename
 
 from auth import auth_bp
+from settings_backend import settings_bp, UserSettings
 from backend.ai_engine import generate_insights, generate_password_examples
 from backend.compliance_mapper import map_to_standards
 from backend.dataset_analyzer import analyze_dataset
@@ -106,6 +107,7 @@ def create_app(config_class=None):
     # ── Blueprints ───────────────────────────────────────────────────── #
     app.register_blueprint(auth_bp)
     app.register_blueprint(hibp_bp)
+    app.register_blueprint(settings_bp)
 
     # ── DB setup ─────────────────────────────────────────────────────── #
     with app.app_context():
