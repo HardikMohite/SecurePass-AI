@@ -15,9 +15,7 @@ FIX SUMMARY:
 - All division protected against zero-total edge cases.
 """
 
-import math
 import statistics
-from collections import Counter
 from typing import Any, Dict, List
 
 

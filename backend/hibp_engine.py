@@ -111,6 +111,17 @@ def _cached_fetch_prefix(prefix: str) -> Optional[str]:
     return None   # all attempts exhausted
 
 
+def fetch_hibp_range(prefix: str) -> Optional[str]:
+    """
+    Fetch the HIBP k-Anonymity suffix range for a 5-char SHA-1 prefix.
+    Validates prefix is strictly 5 hexadecimal chars.
+    """
+    clean_prefix = (prefix or "").strip().upper()
+    if len(clean_prefix) != 5 or not all(c in "0123456789ABCDEF" for c in clean_prefix):
+        return None
+    return _cached_fetch_prefix(clean_prefix)
+
+
 # ── Single-password check ───────────────────────────────────────────────────
 
 def check_password_hibp(
@@ -296,7 +307,6 @@ def check_bulk_passwords(
     breached_in_sample    = len(breached_passwords)
     sample_breach_rate    = breached_in_sample / actual_checked if actual_checked else 0.0
     estimated_breached    = round(total_passwords * sample_breach_rate)
-    clean_estimated       = max(0, total_passwords - estimated_breached)
     breach_percentage     = round(sample_breach_rate * 100, 2)
 
     # Severity distribution — raw counts from the checked sample

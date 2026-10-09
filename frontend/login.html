@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign In | SecurePass AI</title>
+    <meta name="description" content="Sign in to SecurePass AI — enterprise password security and compliance platform.">
+    <link rel="icon" type="image/png" href="/securepass_logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="./src/css/main.css">
+    <link rel="stylesheet" href="./src/css/auth.css">
+</head>
+<body class="light-mode">
+    <div class="auth-wrapper">
+
+        <!-- ── Left Brand Panel ─────────────────────────── -->
+        <div class="auth-panel-left">
+            <div class="auth-brand">
+
+                <!-- Logo lockup -->
+                <a href="/" class="auth-logo-lockup" aria-label="SecurePass AI Home">
+                    <div class="logo-svg-wrap">
+                        <img src="/securepass_logo.png" alt="SecurePass AI Logo" style="width:42px;height:42px;border-radius:8px;object-fit:contain;box-shadow:0 4px 12px rgba(79,70,229,0.18);">
+                    </div>
+                    <div class="auth-logo-name">
+                        <span class="brand-primary">SecurePass AI</span>
+                        <span class="brand-tag">Enterprise Security</span>
+                    </div>
+                </a>
+
+                <!-- Headline -->
+                <h1 class="auth-headline">
+                    Protect every<br>
+                    <span class="hl-accent">credential</span><br>
+                    in your org.
+                </h1>
+                <p class="auth-subline">
+                    AI-powered password intelligence that detects risk,
+                    enforces policy, and keeps your team compliant.
+                </p>
+
+                <!-- Feature list -->
+                <ul class="auth-features" role="list">
+                    <li>
+                        <span class="feat-icon" aria-hidden="true">
+                            <i data-lucide="scan-search"></i>
+                        </span>
+                        Batch Password Security Auditing
+                    </li>
+                    <li>
+                        <span class="feat-icon" aria-hidden="true">
+                            <i data-lucide="brain-circuit"></i>
+                        </span>
+                        AI-Powered Risk Forecasting
+                    </li>
+                    <li>
+                        <span class="feat-icon" aria-hidden="true">
+                            <i data-lucide="shield-check"></i>
+                        </span>
+                        Regulatory Compliance Scanning
+                    </li>
+                    <li>
+                        <span class="feat-icon" aria-hidden="true">
+                            <i data-lucide="lock-keyhole"></i>
+                        </span>
+                        Enterprise Data Loss Prevention
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Trust badge -->
+            <div class="auth-trust-badge">
+                <i data-lucide="shield-check"></i>
+                SOC 2 Type II · ISO 27001 · GDPR Compliant
+            </div>
+        </div>
+
+        <!-- ── Right Form Panel ─────────────────────────── -->
+        <div class="auth-panel-right">
+            <div class="auth-card">
+
+                <p class="auth-form-eyebrow">Welcome back</p>
+                <h2>Sign in to your account</h2>
+                <p class="auth-form-desc">
+                    Enter your credentials to access the dashboard.
+                </p>
+
+                <!-- Alert banners (shown via JS) -->
+                <div id="errMsg" class="auth-alert error" role="alert" aria-live="polite">
+                    <i data-lucide="alert-circle"></i>
+                    <span id="errText"></span>
+                </div>
+                <div id="successMsg" class="auth-alert success" role="status" aria-live="polite">
+                    <i data-lucide="check-circle-2"></i>
+                    <span id="successText"></span>
+                </div>
+
+                <form id="loginForm" novalidate>
+
+                    <!-- Email or Username -->
+                    <div class="form-group">
+                        <label for="email">Email or Username</label>
+                        <div class="input-wrapper">
+                            <span class="input-icon" aria-hidden="true">
+                                <i data-lucide="user"></i>
+                            </span>
+                            <input
+                                type="text"
+                                id="email"
+                                class="auth-input"
+                                placeholder="name@company.com or username"
+                                required
+                                autocomplete="username"
+                            >
+                        </div>
+                    </div>
+
+                    <!-- Password -->
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <div class="input-wrapper">
+                            <span class="input-icon" aria-hidden="true">
+                                <i data-lucide="lock"></i>
+                            </span>
+                            <input
+                                type="password"
+                                id="password"
+                                class="auth-input"
+                                placeholder="••••••••"
+                                required
+                                autocomplete="current-password"
+                            >
+                            <button type="button" id="pwEye" class="password-eye" aria-label="Toggle password visibility">
+                                <i data-lucide="eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Remember + Forgot -->
+                    <div class="auth-extras">
+                        <label class="auth-remember" for="remember" title="Stay signed in for 30 days (default)">
+                            <input type="checkbox" id="remember" checked>
+                            <span>Remember me <span style="font-size:11px;color:var(--text-muted);font-weight:normal;">(30 days)</span></span>
+                        </label>
+                        <a href="/forgot-password" class="auth-forgot">Forgot password?</a>
+                    </div>
+
+                    <!-- Submit -->
+                    <button type="submit" id="loginSubmit" class="btn-primary">
+                        <span id="loginBtnText">Sign In</span>
+                        <i data-lucide="arrow-right"></i>
+                    </button>
+
+                </form>
+
+                <div class="auth-footer">
+                    Don't have an account? <a href="/register">Create one free</a>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script type="module" src="./src/js/error-handler.js"></script>
+    <script type="module" src="./src/js/auth.js"></script>
+    <script type="module" src="./src/js/login.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

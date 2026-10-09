@@ -1,0 +1,69 @@
+# backend/.dockerignore
+#
+# NOTE on why this file exists here vs. at the project root: Docker
+# resolves ignore files two ways for `docker build -f backend/Dockerfile .`
+# (context = project root):
+#   1. A Dockerfile-specific file co-located with the Dockerfile and named
+#      after it: backend/Dockerfile.dockerignore (BuildKit only).
+#   2. Falls back to a plain .dockerignore at the CONTEXT ROOT (project
+#      root) if #1 doesn't exist.
+# This file is kept here as backend/.dockerignore per how it was asked
+# for, and doubles as the source of truth — but Docker itself won't pick
+# up a file at this exact path/name automatically. The project root's
+# .dockerignore (kept in sync with this one) is what Docker actually
+# reads for the build in this repo. Rename this file to
+# backend/Dockerfile.dockerignore instead if you'd rather rely on
+# BuildKit's Dockerfile-specific convention (option 1) than the root
+# fallback (option 2) — either works, just keep only one in sync.
+
+# Secrets / environment
+.env
+*.env
+!.env.example
+
+# Version control
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Tests
+tests/
+test_*.py
+*_test.py
+
+# Logs
+logs/
+*.log
+
+# Local databases (sqlite dev fallback — never ship into the image)
+*.db
+*.sqlite
+*.sqlite3
+
+# Generated report output (regenerated at runtime)
+frontend/static/reports/output/
+*.pdf
+
+# Editor / OS cruft
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Windows dev-only scripts — irrelevant inside a Linux container
+*.ps1
+*.bat
+
+# Docs not needed at runtime
+README.md

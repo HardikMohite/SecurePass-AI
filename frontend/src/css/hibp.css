@@ -1,0 +1,791 @@
+/* ═══════════════════════════════════════════════════════════
+   HIBP & Single Credential Deep Inspector Styles
+   Enterprise-grade cybersecurity telemetry & verification
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Container Card Enhancements ───────────────────────────── */
+.inspector-master-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.inspector-icon-bubble {
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
+    background: rgba(37, 99, 235, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--accent);
+}
+
+[data-theme="dark"] .inspector-icon-bubble {
+    background: rgba(56, 189, 248, 0.12);
+    color: #38bdf8;
+}
+
+.status-pill-live {
+    margin-left: auto;
+    background: rgba(16, 185, 129, 0.12) !important;
+    color: #10b981 !important;
+    font-size: 10.5px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.06em !important;
+    border: 1px solid rgba(16, 185, 129, 0.25) !important;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 9px;
+    border-radius: 99px;
+}
+
+.live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #10b981;
+    box-shadow: 0 0 8px #10b981;
+    animation: pulseBeacon 1.8s infinite;
+}
+
+/* ── Interactive Input Field ───────────────────────────────── */
+.inspector-input-wrapper {
+    margin-bottom: 12px;
+}
+
+.inspector-input {
+    text-align: left !important;
+    width: 100% !important;
+    padding: 12px 42px 12px 15px !important;
+    font-size: 14px !important;
+    font-family: var(--font-mono) !important;
+    border-radius: 10px !important;
+    border: 1px solid var(--border) !important;
+    background: var(--surface-subtle) !important;
+    color: var(--text-primary) !important;
+    transition: all 0.2s ease !important;
+    box-sizing: border-box;
+}
+
+.inspector-input:focus {
+    outline: none !important;
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.12) !important;
+    background: var(--surface) !important;
+}
+
+.inspector-eye-btn {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s ease;
+}
+
+.inspector-eye-btn:hover {
+    color: var(--text-primary);
+}
+
+/* ── Real-time Strength Telemetry Meter ────────────────────── */
+.pw-live-telemetry {
+    margin-top: 10px;
+    padding: 12px 14px;
+    background: var(--surface-subtle);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    animation: fadeInDossier 0.25s ease-out;
+}
+
+.pw-telemetry-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.pw-tier-pill {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 2.5px 8px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.pw-tier-pill.tier-weak {
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.pw-tier-pill.tier-medium {
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.pw-tier-pill.tier-strong {
+    background: rgba(59, 130, 246, 0.12);
+    color: #3b82f6;
+    border: 1px solid rgba(59, 130, 246, 0.25);
+}
+
+.pw-tier-pill.tier-hardened {
+    background: rgba(16, 185, 129, 0.14);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.pw-live-stats {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+/* 4 Segmented Glowing Meter */
+.pw-meter-segments {
+    display: flex;
+    gap: 6px;
+    height: 5px;
+    margin-bottom: 10px;
+}
+
+.pw-segment {
+    flex: 1;
+    height: 100%;
+    border-radius: 99px;
+    background: var(--border-2);
+    transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.pw-segment.active-weak {
+    background: #ef4444;
+    box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+.pw-segment.active-medium {
+    background: #f59e0b;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+}
+
+.pw-segment.active-strong {
+    background: #3b82f6;
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+}
+
+.pw-segment.active-hardened {
+    background: #10b981;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.45);
+}
+
+/* Live Requirement Chips */
+.pw-req-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.req-chip {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 2.5px 7px;
+    border-radius: 5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s ease;
+}
+
+.req-chip.active {
+    color: #10b981;
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.3);
+}
+
+.req-chip i, .req-chip svg {
+    width: 10px;
+    height: 10px;
+}
+
+/* ── Action Buttons ────────────────────────────────────────── */
+.inspector-actions-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.inspector-actions-grid .btn-inspector {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 8px !important;
+    padding: 10px 14px !important;
+    font-size: 12.5px !important;
+    font-weight: 700 !important;
+    border-radius: 10px !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    border: 1px solid transparent !important;
+    letter-spacing: 0.02em !important;
+    min-height: 40px !important;
+}
+
+.inspector-actions-grid #pwCheckBtn {
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(37, 99, 235, 0.18)) !important;
+    border: 1px solid rgba(37, 99, 235, 0.4) !important;
+    color: var(--accent) !important;
+}
+
+.inspector-actions-grid #pwCheckBtn:hover {
+    background: var(--accent) !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 14px -2px rgba(37, 99, 235, 0.4) !important;
+    transform: translateY(-1px);
+}
+
+.inspector-actions-grid #pwHIBPBtn {
+    background: var(--surface-subtle) !important;
+    border: 1px solid var(--border) !important;
+    color: var(--text-primary) !important;
+}
+
+.inspector-actions-grid #pwHIBPBtn:hover {
+    background: rgba(0, 210, 242, 0.08) !important;
+    border-color: var(--accent-secondary) !important;
+    color: var(--accent-secondary) !important;
+    transform: translateY(-1px);
+}
+
+/* ── Integrated Inspector Dossier ──────────────────────────── */
+.inspector-result-container {
+    font-size: 12.5px;
+    color: var(--text-muted);
+}
+
+.inspector-dossier {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 6px;
+    margin-bottom: 10px;
+    box-shadow: 0 4px 18px -4px rgba(15, 23, 42, 0.06);
+    animation: fadeInDossier 0.3s ease-out;
+    position: relative;
+    border-left: 4px solid var(--accent);
+}
+
+.inspector-dossier.dossier-risk-low {
+    border-left-color: #10b981;
+}
+
+.inspector-dossier.dossier-risk-medium {
+    border-left-color: #f59e0b;
+}
+
+.inspector-dossier.dossier-risk-high {
+    border-left-color: #ef4444;
+}
+
+/* Dossier Hero Header */
+.dossier-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 14px;
+}
+
+.dossier-hero-left {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.dossier-status-pill {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 3px 10px;
+    border-radius: 99px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    width: fit-content;
+}
+
+.badge-risk-low {
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.badge-risk-medium {
+    background: rgba(245, 158, 11, 0.12);
+    color: #f59e0b;
+    border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.badge-risk-high {
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.dossier-pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 6px currentColor;
+}
+
+.dossier-compliance-text {
+    font-size: 11px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-weight: 500;
+}
+
+.dossier-hero-score {
+    text-align: right;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.dossier-score-val {
+    font-family: var(--font-mono);
+    font-size: 1.65rem;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--text-primary);
+}
+
+.score-den {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    margin-left: 2px;
+}
+
+.dossier-score-caption {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    margin-top: 3px;
+    text-transform: uppercase;
+}
+
+/* 4-Tile Telemetry Grid */
+.dossier-metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+@media (max-width: 640px) {
+    .dossier-metrics-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.dossier-metric-tile {
+    background: var(--surface-subtle);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 11px 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.dossier-metric-tile:hover {
+    border-color: var(--border-hover);
+    transform: translateY(-1px);
+}
+
+.metric-tile-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.metric-icon {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+}
+
+.metric-icon-cyan { color: #06b6d4; }
+.metric-icon-amber { color: #f59e0b; }
+.metric-icon-indigo { color: #6366f1; }
+.metric-icon-emerald { color: #10b981; }
+
+.metric-tile-val {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.3;
+}
+
+.metric-tile-val.font-mono {
+    font-family: var(--font-mono);
+}
+
+.metric-tile-val .unit {
+    font-size: 10.5px;
+    font-weight: 500;
+    color: var(--text-muted);
+}
+
+.metric-tile-sub {
+    font-size: 10.5px;
+    color: var(--text-muted);
+    line-height: 1.3;
+}
+
+.tile-val-success {
+    color: #10b981 !important;
+}
+
+.tile-val-danger {
+    color: #ef4444 !important;
+}
+
+.tile-val-muted {
+    color: var(--text-muted) !important;
+}
+
+.metric-tag-chips {
+    display: flex;
+    gap: 4px;
+    margin: 2px 0;
+}
+
+.tag-chip {
+    font-size: 9.5px;
+    font-weight: 700;
+    padding: 1.5px 5px;
+    border-radius: 4px;
+}
+
+.chip-pass {
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.chip-fail {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* AI Advisory Card */
+.dossier-advisory-card {
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.05), rgba(37, 99, 235, 0.03));
+    border: 1px solid rgba(99, 102, 241, 0.22);
+    border-radius: 9px;
+    padding: 11px 13px;
+}
+
+[data-theme="dark"] .dossier-advisory-card {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(56, 189, 248, 0.05));
+    border-color: rgba(99, 102, 241, 0.35);
+}
+
+.advisory-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 5px;
+}
+
+.advisory-icon-wrap {
+    width: 18px;
+    height: 18px;
+    border-radius: 5px;
+    background: rgba(99, 102, 241, 0.15);
+    color: #6366f1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.advisory-icon-wrap i, .advisory-icon-wrap svg {
+    width: 11px;
+    height: 11px;
+}
+
+.advisory-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: 0.02em;
+}
+
+.advisory-body {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    line-height: 1.45;
+    margin: 0;
+}
+
+/* ── HIBP Report Card ──────────────────────────────────────── */
+.hibp-wrap {
+    margin-top: 10px;
+}
+
+.hibp-report-card {
+    border-radius: 12px;
+    padding: 15px 17px;
+    margin-top: 6px;
+    position: relative;
+    overflow: hidden;
+    animation: fadeInDossier 0.3s ease-out;
+}
+
+.hibp-card-clean {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.07), rgba(5, 150, 105, 0.02));
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+[data-theme="dark"] .hibp-card-clean {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.12), rgba(5, 150, 105, 0.04));
+    border-color: rgba(16, 185, 129, 0.4);
+}
+
+.hibp-card-compromised {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.09), rgba(220, 38, 38, 0.03));
+    border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+[data-theme="dark"] .hibp-card-compromised {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.14), rgba(220, 38, 38, 0.05));
+    border-color: rgba(239, 68, 68, 0.45);
+}
+
+.hibp-card-auth {
+    background: var(--surface-subtle);
+    border: 1px solid var(--border);
+}
+
+.hibp-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.hibp-badge-verified {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #10b981;
+}
+
+.hibp-badge-danger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #ef4444;
+}
+
+.hibp-badge-auth {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.hibp-telemetry-tag {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+}
+
+.tag-success {
+    background: rgba(16, 185, 129, 0.12);
+    color: #10b981;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+.tag-danger {
+    background: rgba(239, 68, 68, 0.12);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
+.hibp-breach-count-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.breach-count-number {
+    font-family: var(--font-mono);
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: #ef4444;
+}
+
+.breach-count-label {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.hibp-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin: 0 0 8px 0;
+}
+
+.hibp-remediation-tip {
+    font-size: 11px;
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    padding: 7px 10px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    line-height: 1.4;
+}
+
+.hibp-meta-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.meta-pill {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 3px 8px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* ── Footer Telemetry ──────────────────────────────────────── */
+.inspector-telemetry-footer {
+    margin-top: auto;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.telemetry-beacon {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-secondary);
+    display: inline-block;
+    box-shadow: 0 0 8px var(--accent-secondary);
+    animation: pulseBeacon 2s infinite;
+}
+
+.telemetry-standard {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--accent);
+    font-weight: 600;
+}
+
+/* ── Keyframe Animations ───────────────────────────────────── */
+@keyframes pulseBeacon {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.3); opacity: 0.7; }
+}
+
+@keyframes fadeInDossier {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.spin {
+    animation: spinLoader 1s linear infinite;
+}
+
+@keyframes spinLoader {
+    100% { transform: rotate(360deg); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   HIBP — Breach stats container
+   renderBreachStats() uses fully inline-styled markup so
+   no CSS cascade can ever collapse the two-column layout.
+   ═══════════════════════════════════════════════════════════ */
+
+#breachContainer {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+/* Collapse to single column on narrow viewports */
+@media (max-width: 860px) {
+    #breachContainer > div {
+        display: flex !important;
+        flex-direction: column !important;
+    }
+}

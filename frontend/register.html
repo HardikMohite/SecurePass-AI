@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Account | SecurePass AI</title>
+    <meta name="description" content="Create your SecurePass AI account — enterprise password security and compliance platform.">
+    <link rel="icon" type="image/png" href="/securepass_logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="./src/css/main.css">
+    <link rel="stylesheet" href="./src/css/auth.css">
+</head>
+<body class="light-mode">
+    <div class="auth-wrapper">
+
+        <!-- ── Left Brand Panel ─────────────────────────── -->
+        <div class="auth-panel-left">
+            <div class="auth-brand">
+
+                <!-- Logo lockup -->
+                <a href="/" class="auth-logo-lockup" aria-label="SecurePass AI Home">
+                    <div class="logo-svg-wrap">
+                        <img src="/securepass_logo.png" alt="SecurePass AI Logo" style="width:42px;height:42px;border-radius:8px;object-fit:contain;box-shadow:0 4px 12px rgba(79,70,229,0.18);">
+                    </div>
+                    <div class="auth-logo-name">
+                        <span class="brand-primary">SecurePass AI</span>
+                        <span class="brand-tag">Enterprise Security</span>
+                    </div>
+                </a>
+
+                <h1 class="auth-headline">
+                    Start securing<br>
+                    your team's<br>
+                    <span class="hl-accent">passwords</span> today.
+                </h1>
+                <p class="auth-subline">
+                    Join thousands of security teams using AI-driven
+                    auditing to eliminate credential risk.
+                </p>
+
+                <ul class="auth-features" role="list">
+                    <li>
+                        <span class="feat-icon" aria-hidden="true">
+                            <i data-lucide="scan-search"></i>
+                        </span>
+                        Batch Password Security Auditing
+                    </li>
+                    <li>
+                        <span class="feat-icon" aria-hidden="true">
+                            <i data-lucide="brain-circuit"></i>
+                        </span>
+                        AI-Powered Risk Forecasting
+                    </li>
+                    <li>
+                        <span class="feat-icon" aria-hidden="true">
+                            <i data-lucide="shield-check"></i>
+                        </span>
+                        Regulatory Compliance Scanning
+                    </li>
+                    <li>
+                        <span class="feat-icon" aria-hidden="true">
+                            <i data-lucide="lock-keyhole"></i>
+                        </span>
+                        Enterprise Data Loss Prevention
+                    </li>
+                </ul>
+            </div>
+
+            <div class="auth-trust-badge">
+                <i data-lucide="shield-check"></i>
+                SOC 2 Type II · ISO 27001 · GDPR Compliant
+            </div>
+        </div>
+
+        <!-- ── Right Form Panel ─────────────────────────── -->
+        <div class="auth-panel-right">
+            <div class="auth-card">
+
+                <p class="auth-form-eyebrow">Get started</p>
+                <h2>Create your account</h2>
+                <p class="auth-form-desc">
+                    Free to start. No credit card required.
+                </p>
+
+                <!-- Alert banners -->
+                <div id="errMsg" class="auth-alert error" role="alert" aria-live="polite">
+                    <i data-lucide="alert-circle"></i>
+                    <span id="errText"></span>
+                </div>
+                <div id="successMsg" class="auth-alert success" role="status" aria-live="polite">
+                    <i data-lucide="check-circle-2"></i>
+                    <span id="successText"></span>
+                </div>
+
+                <form id="registerForm" novalidate>
+
+                    <!-- Username (optional) -->
+                    <div class="form-group">
+                        <label for="username">
+                            Username <span style="color:#475569;font-weight:400;">(optional)</span>
+                        </label>
+                        <div class="input-wrapper">
+                            <span class="input-icon" aria-hidden="true">
+                                <i data-lucide="user"></i>
+                            </span>
+                            <input
+                                type="text"
+                                id="username"
+                                class="auth-input"
+                                placeholder="Display name"
+                                autocomplete="username"
+                            >
+                        </div>
+                    </div>
+
+                    <!-- Email -->
+                    <div class="form-group">
+                        <label for="email">Email address</label>
+                        <div class="input-wrapper">
+                            <span class="input-icon" aria-hidden="true">
+                                <i data-lucide="mail"></i>
+                            </span>
+                            <input
+                                type="email"
+                                id="email"
+                                class="auth-input"
+                                placeholder="name@company.com"
+                                required
+                                autocomplete="email"
+                            >
+                        </div>
+                    </div>
+
+                    <!-- Password -->
+                    <div class="form-group">
+                        <label for="password">Password</label>
+                        <div class="input-wrapper">
+                            <span class="input-icon" aria-hidden="true">
+                                <i data-lucide="lock"></i>
+                            </span>
+                            <input
+                                type="password"
+                                id="password"
+                                class="auth-input"
+                                placeholder="••••••••"
+                                required
+                                autocomplete="new-password"
+                            >
+                            <button type="button" id="pwEye" class="password-eye" aria-label="Toggle password visibility">
+                                <i data-lucide="eye"></i>
+                            </button>
+                        </div>
+
+                        <!-- Strength bar -->
+                        <div class="password-strength-grid" aria-hidden="true">
+                            <div id="seg0" class="strength-segment"></div>
+                            <div id="seg1" class="strength-segment"></div>
+                            <div id="seg2" class="strength-segment"></div>
+                            <div id="seg3" class="strength-segment"></div>
+                        </div>
+                        <div id="strengthLabel" aria-live="polite">Token Strength: None</div>
+
+                        <!-- Requirements -->
+                        <ul class="requirement-list" aria-label="Password requirements">
+                            <li id="req-len"><i data-lucide="circle"></i> 8+ characters</li>
+                            <li id="req-12"><i data-lucide="circle"></i> 12+ (Recommended)</li>
+                            <li id="req-up"><i data-lucide="circle"></i> Uppercase</li>
+                            <li id="req-low"><i data-lucide="circle"></i> Lowercase</li>
+                            <li id="req-num"><i data-lucide="circle"></i> Number</li>
+                            <li id="req-spc"><i data-lucide="circle"></i> Special char</li>
+                        </ul>
+                    </div>
+
+                    <!-- Confirm password -->
+                    <div class="form-group">
+                        <label for="confirm">Confirm password</label>
+                        <div class="input-wrapper">
+                            <span class="input-icon" aria-hidden="true">
+                                <i data-lucide="shield"></i>
+                            </span>
+                            <input
+                                type="password"
+                                id="confirm"
+                                class="auth-input"
+                                placeholder="••••••••"
+                                required
+                                autocomplete="new-password"
+                            >
+                            <button type="button" id="confEye" class="password-eye" aria-label="Toggle confirm password visibility">
+                                <i data-lucide="eye"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Submit -->
+                    <button type="submit" id="regSubmit" class="btn-primary">
+                        <span id="regBtnText">Create Account</span>
+                        <i data-lucide="arrow-right"></i>
+                    </button>
+
+                </form>
+
+                <div class="auth-footer">
+                    Already have an account? <a href="/login">Sign in</a>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script type="module" src="./src/js/error-handler.js"></script>
+    <script type="module" src="./src/js/auth.js"></script>
+    <script type="module" src="./src/js/register.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

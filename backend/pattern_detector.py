@@ -12,14 +12,17 @@ FIX SUMMARY:
   after substitution, reducing false positives substantially.
 - Added _count_sequential_numbers() to catch '123456'-style passwords
   that were passing all existing checks undetected.
-- Added min_length / max_length / median_length to the output dict so
-  callers (app.py / pdf_gen) can read them from patterns directly.
+- Removed the duplicate min_length / max_length / median_length calculation
+  that used to live here — dataset_analyzer.analyze_dataset() already
+  computes these (plus std_dev_length, which this module never had) from
+  the same password list, so this was a second source of truth for numbers
+  the report already gets elsewhere. app.py now reads length stats only
+  from dataset_analyzer's output.
 - _filter_valid_passwords() now also strips trailing CR for Windows files.
 - All count functions are pure (no side-effects).
 """
 
 import re
-import statistics
 from typing import Any, Dict, List
 
 
@@ -33,9 +36,6 @@ def detect_patterns(passwords: List[str]) -> Dict[str, Any]:
 
     Returns a dict with:
         total_analyzed  – int
-        min_length      – int
-        max_length      – int
-        median_length   – float
         patterns        – dict of pattern → {count, percentage}
     """
     if not passwords:
@@ -46,7 +46,6 @@ def detect_patterns(passwords: List[str]) -> Dict[str, Any]:
         return _empty_pattern_result()
 
     total = len(valid)
-    lengths = [len(p) for p in valid]
 
     counts = {
         'dictionary_based':    _count_dictionary_passwords(valid),
@@ -60,9 +59,6 @@ def detect_patterns(passwords: List[str]) -> Dict[str, Any]:
 
     return {
         'total_analyzed': total,
-        'min_length':     min(lengths),
-        'max_length':     max(lengths),
-        'median_length':  statistics.median(lengths),
         'patterns': {
             name: {
                 'count':      cnt,
@@ -237,8 +233,5 @@ def _empty_pattern_result() -> Dict[str, Any]:
     ]
     return {
         'total_analyzed': 0,
-        'min_length':     0,
-        'max_length':     0,
-        'median_length':  0.0,
         'patterns': {name: {'count': 0, 'percentage': 0.0} for name in pattern_names},
     }

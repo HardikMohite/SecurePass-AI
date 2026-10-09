@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - SecurePass AI</title>
+    <link rel="stylesheet" href="./src/css/main.css">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <div class="logo">
+                <svg class="icon icon-shield-half"><use xlink:href="/icons.svg#icon-shield-half"></use></svg>
+                <h1>SecurePass AI</h1>
+            </div>
+            <nav>
+                <a href="./index.html">Dashboard</a>
+                <a href="./profile.html">Profile</a>
+                <a href="#" id="logout-button">Logout</a>
+            </nav>
+        </div>
+    </header>
+    <main class="container">
+        <h2>User Profile</h2>
+        <div id="profile-info">
+            <!-- Profile info will be loaded here -->
+        </div>
+        <h3>Analysis History</h3>
+        <div id="analysis-history">
+            <!-- Analysis history will be loaded here -->
+        </div>
+    </main>
+    <script type="module" src="./src/js/error-handler.js"></script>
+    <script type="module" src="./src/js/auth.js"></script>
+</body>
+</html>

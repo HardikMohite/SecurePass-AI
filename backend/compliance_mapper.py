@@ -1,21 +1,12 @@
 """
 compliance_mapper.py — SecurePass AI
 
-Maps password analysis findings to security compliance standards:
-  - NIST SP 800-63B
-  - OWASP Authentication Cheat Sheet
-  - ISO/IEC 27001:2022 (A.9.4 — System and application access control)
-
-FIX SUMMARY:
-- Added ISO 27001 evaluation alongside NIST and OWASP.
-- _evaluate_nist_compliance() thresholds lowered to realistic audit values
-  (was 20% dict / 15% keyboard — real auditors flag anything above ~10%).
-- _evaluate_owasp_risk() now also factors in sequential_numbers pattern.
-- _identify_violations() includes sequential_numbers and ISO 27001 entries.
-- Added _calculate_compliance_scores() returning numeric scores (0–100)
-  suitable for PDF charts (previously done via heuristics in app.py).
-- Compliance notes now always include all three standards.
-- _default_compliance_result() updated to include iso_compliance_status.
+Maps password analysis findings to enterprise security compliance standards:
+  - NIST SP 800-63B (Digital Identity Guidelines)
+  - OWASP Authentication Verification Standard (A07:2021)
+  - ISO/IEC 27001:2022 (A.9.4 — Access control & credential hygiene)
+  - PCI-DSS v4.0 (Requirement 8.3 — Strong authentication & complexity)
+  - HIPAA Security Rule (§ 164.312(a)(2)(i) — Unique identification & safeguarding)
 """
 
 from typing import Any, Dict, List
@@ -36,27 +27,34 @@ def map_to_standards(
         nist_compliance_status  – 'Compliant' | 'Partial Compliance' | 'Non-Compliant'
         owasp_risk_level        – 'Low' | 'Medium' | 'High' | 'Critical'
         iso_compliance_status   – 'Compliant' | 'Partial Compliance' | 'Non-Compliant'
-        compliance_scores       – dict of standard → numeric score (0–100) for charts
+        pci_compliance_status   – 'Compliant' | 'Partial Compliance' | 'Non-Compliant'
+        hipaa_compliance_status – 'Compliant' | 'Partial Compliance' | 'Non-Compliant'
+        compliance_scores       – dict of standard → numeric score (0–100) for charts/PDF
         compliance_notes        – list of human-readable notes
         violations              – list of violation dicts
     """
     if not pattern_stats or risk_score < 0:
         return _default_compliance_result()
 
-    nist_status = _evaluate_nist_compliance(pattern_stats, risk_score)
-    owasp_risk  = _evaluate_owasp_risk(pattern_stats, risk_score)
-    iso_status  = _evaluate_iso_compliance(pattern_stats, risk_score)
-    notes       = _generate_compliance_notes(nist_status, owasp_risk, iso_status, pattern_stats)
+    nist_status  = _evaluate_nist_compliance(pattern_stats, risk_score)
+    owasp_risk   = _evaluate_owasp_risk(pattern_stats, risk_score)
+    iso_status   = _evaluate_iso_compliance(pattern_stats, risk_score)
+    pci_status   = _evaluate_pci_compliance(pattern_stats, risk_score)
+    hipaa_status = _evaluate_hipaa_compliance(pattern_stats, risk_score)
+
+    notes       = _generate_compliance_notes(nist_status, owasp_risk, iso_status, pci_status, hipaa_status, pattern_stats)
     violations  = _identify_violations(pattern_stats, risk_score)
-    scores      = _calculate_compliance_scores(nist_status, owasp_risk, iso_status, risk_score)
+    scores      = _calculate_compliance_scores(nist_status, owasp_risk, iso_status, pci_status, hipaa_status, risk_score)
 
     return {
-        'nist_compliance_status': nist_status,
-        'owasp_risk_level':       owasp_risk,
-        'iso_compliance_status':  iso_status,
-        'compliance_scores':      scores,
-        'compliance_notes':       notes,
-        'violations':             violations,
+        'nist_compliance_status':  nist_status,
+        'owasp_risk_level':        owasp_risk,
+        'iso_compliance_status':   iso_status,
+        'pci_compliance_status':   pci_status,
+        'hipaa_compliance_status': hipaa_status,
+        'compliance_scores':       scores,
+        'compliance_notes':        notes,
+        'violations':              violations,
     }
 
 
@@ -68,14 +66,7 @@ def _evaluate_nist_compliance(
     pattern_stats: Dict[str, Any],
     risk_score: float,
 ) -> str:
-    """
-    NIST SP 800-63B compliance.
-
-    Key requirements checked:
-      - No dictionary / commonly-used passwords
-      - No context-specific words
-      - Minimum length (proxied via risk_score)
-    """
+    """NIST SP 800-63B compliance evaluation."""
     patterns = pattern_stats.get('patterns', {})
     dict_pct  = patterns.get('dictionary_based', {}).get('percentage', 0.0)
     kbd_pct   = patterns.get('keyboard_walk',   {}).get('percentage', 0.0)
@@ -98,11 +89,7 @@ def _evaluate_owasp_risk(
     pattern_stats: Dict[str, Any],
     risk_score: float,
 ) -> str:
-    """
-    OWASP Authentication Cheat Sheet risk level.
-
-    Factors: dictionary words, names, keyboard walks, sequential numbers.
-    """
+    """OWASP Authentication Cheat Sheet risk level."""
     patterns = pattern_stats.get('patterns', {})
 
     dict_pct = patterns.get('dictionary_based',   {}).get('percentage', 0.0)
@@ -125,11 +112,7 @@ def _evaluate_iso_compliance(
     pattern_stats: Dict[str, Any],
     risk_score: float,
 ) -> str:
-    """
-    ISO/IEC 27001:2022 A.9.4 — System and application access control.
-
-    Checks: overall score, duplicate passwords, short passwords.
-    """
+    """ISO/IEC 27001:2022 A.9.4 — System and application access control."""
     patterns  = pattern_stats.get('patterns', {})
     cap_pct   = patterns.get('capitalization_misuse', {}).get('percentage', 0.0)
     leet_pct  = patterns.get('leetspeak',             {}).get('percentage', 0.0)
@@ -146,19 +129,67 @@ def _evaluate_iso_compliance(
     return 'Compliant'
 
 
+def _evaluate_pci_compliance(
+    pattern_stats: Dict[str, Any],
+    risk_score: float,
+) -> str:
+    """PCI-DSS v4.0 Requirement 8.3 — Strong authentication & complexity."""
+    patterns = pattern_stats.get('patterns', {})
+    dict_pct = patterns.get('dictionary_based', {}).get('percentage', 0.0)
+    kbd_pct  = patterns.get('keyboard_walk',   {}).get('percentage', 0.0)
+    seq_pct  = patterns.get('sequential_numbers', {}).get('percentage', 0.0)
+
+    violations = 0
+    if risk_score < 55:  violations += 1
+    if dict_pct > 8.0:   violations += 1
+    if kbd_pct > 8.0:    violations += 1
+    if seq_pct > 8.0:    violations += 1
+
+    if violations >= 2:
+        return 'Non-Compliant'
+    if violations == 1:
+        return 'Partial Compliance'
+    return 'Compliant'
+
+
+def _evaluate_hipaa_compliance(
+    pattern_stats: Dict[str, Any],
+    risk_score: float,
+) -> str:
+    """HIPAA Security Rule § 164.312(a)(2)(i) — Unique user authentication safeguards."""
+    patterns = pattern_stats.get('patterns', {})
+    dict_pct = patterns.get('dictionary_based', {}).get('percentage', 0.0)
+    seq_pct  = patterns.get('sequential_numbers', {}).get('percentage', 0.0)
+
+    violations = 0
+    if risk_score < 45:  violations += 1
+    if dict_pct > 12.0:  violations += 1
+    if seq_pct > 12.0:   violations += 1
+
+    if violations >= 2:
+        return 'Non-Compliant'
+    if violations == 1:
+        return 'Partial Compliance'
+    return 'Compliant'
+
+
 # ────────────────────────────────────────────────────────────────────────────
-#  Compliance scores (numeric, for PDF charts)
+#  Compliance scores (numeric, for charts and PDF)
 # ────────────────────────────────────────────────────────────────────────────
 
 _NIST_SCORE_MAP  = {'Compliant': 1.0,  'Partial Compliance': 0.85, 'Non-Compliant': 0.60}
 _OWASP_SCORE_MAP = {'Low': 1.05, 'Medium': 0.90, 'High': 0.70, 'Critical': 0.50}
 _ISO_SCORE_MAP   = {'Compliant': 1.0,  'Partial Compliance': 0.88, 'Non-Compliant': 0.65}
+_PCI_SCORE_MAP   = {'Compliant': 1.0,  'Partial Compliance': 0.82, 'Non-Compliant': 0.58}
+_HIPAA_SCORE_MAP = {'Compliant': 1.0,  'Partial Compliance': 0.85, 'Non-Compliant': 0.60}
 
 
 def _calculate_compliance_scores(
     nist_status: str,
     owasp_risk: str,
     iso_status: str,
+    pci_status: str,
+    hipaa_status: str,
     risk_score: float,
 ) -> Dict[str, float]:
     """Return numeric scores (0–100) suitable for bar/radar charts in the PDF."""
@@ -166,6 +197,8 @@ def _calculate_compliance_scores(
         'NIST SP 800-63B': min(100.0, risk_score * _NIST_SCORE_MAP.get(nist_status, 1.0)),
         'OWASP':           min(100.0, risk_score * _OWASP_SCORE_MAP.get(owasp_risk, 1.0)),
         'ISO 27001':       min(100.0, risk_score * _ISO_SCORE_MAP.get(iso_status, 1.0)),
+        'PCI-DSS v4.0':    min(100.0, risk_score * _PCI_SCORE_MAP.get(pci_status, 1.0)),
+        'HIPAA':           min(100.0, risk_score * _HIPAA_SCORE_MAP.get(hipaa_status, 1.0)),
     }
 
 
@@ -177,6 +210,8 @@ def _generate_compliance_notes(
     nist_status: str,
     owasp_risk: str,
     iso_status: str,
+    pci_status: str,
+    hipaa_status: str,
     pattern_stats: Dict[str, Any],
 ) -> List[str]:
     notes: List[str] = []
@@ -205,6 +240,22 @@ def _generate_compliance_notes(
         'Compliant':          'ISO 27001 A.9.4: Access control requirements are met.',
     }
     notes.append(iso_messages.get(iso_status, 'ISO 27001: Unable to evaluate.'))
+
+    # PCI-DSS v4.0
+    pci_messages = {
+        'Non-Compliant':     'PCI-DSS v4.0: Requirement 8.3 fails — credentials lack required complexity and length.',
+        'Partial Compliance': 'PCI-DSS v4.0: Requirement 8.3 partial — minor pattern weaknesses identified.',
+        'Compliant':          'PCI-DSS v4.0: Requirement 8.3 satisfied — credentials meet payment security standards.',
+    }
+    notes.append(pci_messages.get(pci_status, 'PCI-DSS v4.0: Unable to evaluate.'))
+
+    # HIPAA
+    hipaa_messages = {
+        'Non-Compliant':     'HIPAA § 164.312(a)(2)(i): ePHI access control deficient due to predictable credentials.',
+        'Partial Compliance': 'HIPAA § 164.312(a)(2)(i): Safeguards partially met — remediation recommended.',
+        'Compliant':          'HIPAA § 164.312(a)(2)(i): ePHI authentication controls verified compliant.',
+    }
+    notes.append(hipaa_messages.get(hipaa_status, 'HIPAA: Unable to evaluate.'))
 
     # Additional contextual notes
     dict_pct = patterns.get('dictionary_based', {}).get('percentage', 0.0)
@@ -271,10 +322,18 @@ def _identify_violations(
 
 def _default_compliance_result() -> Dict[str, Any]:
     return {
-        'nist_compliance_status': 'Unknown',
-        'owasp_risk_level':       'Unknown',
-        'iso_compliance_status':  'Unknown',
-        'compliance_scores':      {'NIST SP 800-63B': 0.0, 'OWASP': 0.0, 'ISO 27001': 0.0},
-        'compliance_notes':       ['Unable to evaluate compliance due to insufficient data.'],
-        'violations':             [],
+        'nist_compliance_status':  'Unknown',
+        'owasp_risk_level':        'Unknown',
+        'iso_compliance_status':   'Unknown',
+        'pci_compliance_status':   'Unknown',
+        'hipaa_compliance_status': 'Unknown',
+        'compliance_scores': {
+            'NIST SP 800-63B': 0.0,
+            'OWASP':           0.0,
+            'ISO 27001':       0.0,
+            'PCI-DSS v4.0':    0.0,
+            'HIPAA':           0.0,
+        },
+        'compliance_notes': ['Unable to evaluate compliance due to insufficient data.'],
+        'violations':       [],
     }

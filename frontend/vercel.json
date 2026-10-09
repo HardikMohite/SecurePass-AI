@@ -1,0 +1,33 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": "https://REPLACE-WITH-YOUR-RENDER-BACKEND.onrender.com/api/$1"
+    },
+    {
+      "source": "/static/(.*)",
+      "destination": "https://REPLACE-WITH-YOUR-RENDER-BACKEND.onrender.com/static/$1"
+    },
+    {
+      "source": "/403",
+      "destination": "/403.html"
+    },
+    {
+      "source": "/500",
+      "destination": "/500.html"
+    },
+    {
+      "source": "/404",
+      "destination": "/404.html"
+    },
+    {
+      "source": "/((?!api/|static/|.*\\..*).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

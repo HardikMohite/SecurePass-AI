@@ -10,10 +10,15 @@ __pycache__/
 venv/
 *.egg-info/
 
-# Database
+# Database & cache
 *.db
 *.sqlite
 *.sqlite3
+instance/
+.pytest_cache/
+node_modules/
+dist/
+scratch/
 
 # Generated files
 frontend/static/reports/output/

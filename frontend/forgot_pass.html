@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forgot Password | SecurePass AI</title>
+    <meta name="description" content="Reset your SecurePass AI account password with double authentication OTP.">
+    <link rel="icon" type="image/png" href="/securepass_logo.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+    <link rel="stylesheet" href="./src/css/recovery.css">
+    <script type="module" src="./src/js/error-handler.js"></script>
+</head>
+<body class="light-mode">
+    <div class="recovery-wrapper">
+
+        <!-- ── Left Brand Panel ─────────────────────────── -->
+        <div class="panel-left">
+            <div class="panel-left-content">
+
+                <!-- Logo lockup -->
+                <a href="/login" class="brand-lockup" aria-label="SecurePass AI Home">
+                    <div class="logo-svg-wrap">
+                        <img src="/securepass_logo.png" alt="SecurePass AI Logo" style="width:40px;height:40px;border-radius:8px;object-fit:contain;">
+                    </div>
+                    <div class="brand-name-wrap">
+                        <span class="b-primary">SecurePass AI</span>
+                        <span class="b-tag">Enterprise Security</span>
+                    </div>
+                </a>
+
+                <h1 class="hero-title">Recover your<br><span>Access</span></h1>
+                <p class="hero-sub">
+                    Secure double authentication powered by Brevo email dispatch with zero-knowledge cryptographic verification.
+                </p>
+
+                <ul class="feature-list" role="list">
+                    <li class="feature-item">
+                        <span class="f-icon" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+                        </span>
+                        Automated breach correlation
+                    </li>
+                    <li class="feature-item">
+                        <span class="f-icon" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        </span>
+                        2FA Double verification OTP
+                    </li>
+                    <li class="feature-item">
+                        <span class="f-icon" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+                        </span>
+                        Multi-factor link validation
+                    </li>
+                    <li class="feature-item">
+                        <span class="f-icon" aria-hidden="true">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                        </span>
+                        Entropy-based reset logic
+                    </li>
+                </ul>
+            </div>
+
+            <div class="trust-badge">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>
+                SOC 2 Type II · ISO 27001 · GDPR Compliant
+            </div>
+        </div>
+
+        <!-- ── Right Form Panel ─────────────────────────── -->
+        <div class="panel-right">
+            <div class="form-container">
+
+                <!-- Animated badge icon -->
+                <div class="recovery-badge-icon" id="badgeIcon">
+                    <svg id="badgeSvg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                </div>
+
+                <!-- Step Indicator Bar -->
+                <div class="step-indicator-bar">
+                    <div class="step-pill" id="stepPill">Step 1 of 3 · Email</div>
+                    <div class="step-dots">
+                        <div class="step-dot active" id="dot1"></div>
+                        <div class="step-dot" id="dot2"></div>
+                        <div class="step-dot" id="dot3"></div>
+                    </div>
+                </div>
+
+                <!-- ════════ STEP 1: ENTER EMAIL ════════ -->
+                <div class="step-panel active" id="step1Panel">
+                    <p class="form-eyebrow">Password Reset</p>
+                    <h2 class="page-title">Forgot your password?</h2>
+                    <p class="page-subtitle">
+                        Enter your corporate email address. We will dispatch a 6-digit OTP code and a secure 1-click reset link via Brevo.
+                    </p>
+
+                    <div id="step1Alert" class="form-alert error" role="alert">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <span id="step1AlertText"></span>
+                    </div>
+
+                    <form id="step1Form" onsubmit="return false;">
+                        <div class="form-group" style="margin-bottom: 1.25rem;">
+                            <label class="field-label" for="resetEmail" style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:0.45rem;color:#334155;">Email address</label>
+                            <div class="input-wrapper">
+                                <span class="input-icon-left" aria-hidden="true">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                                </span>
+                                <input
+                                    type="email"
+                                    id="resetEmail"
+                                    class="recovery-input"
+                                    placeholder="name@company.com"
+                                    autocomplete="email"
+                                    required
+                                >
+                            </div>
+                        </div>
+
+                        <button type="submit" id="sendBtn" class="submit-btn">
+                            <span>Send Verification Code &amp; Link</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                        </button>
+                    </form>
+
+                    <div class="back-row">
+                        <a href="/login" class="back-link">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                            Back to Sign In
+                        </a>
+                    </div>
+                </div>
+
+                <!-- ════════ STEP 2: 2FA OTP VERIFICATION ════════ -->
+                <div class="step-panel" id="step2Panel">
+                    <p class="form-eyebrow">Double Authentication</p>
+                    <h2 class="page-title">Enter 6-Digit Code</h2>
+                    <p class="page-subtitle">
+                        We sent a verification code to <strong id="sentEmailDisplay" style="color:#0f172a;"></strong>. You can enter the OTP below or click the direct link in your email.
+                    </p>
+
+                    <div id="step2Alert" class="form-alert error" role="alert">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <span id="step2AlertText"></span>
+                    </div>
+
+                    <!-- Simulated code badge if in dev mode -->
+                    <div id="devOtpBanner" style="display:none;background:#eef2ff;border:1px dashed #6366f1;border-radius:10px;padding:10px 14px;margin-bottom:1rem;font-size:0.8rem;color:#4338ca;">
+                        <strong>Dev Simulation:</strong> Your code is <code id="devOtpCode" style="font-weight:800;font-size:1.05rem;letter-spacing:2px;background:#ffffff;padding:2px 6px;border-radius:4px;border:1px solid #c7d2fe;"></code>
+                    </div>
+
+                    <form id="step2Form" onsubmit="return false;">
+                        <!-- 6-digit OTP input boxes -->
+                        <div class="otp-inputs-wrapper" id="otpGroup">
+                            <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" autocomplete="one-time-code" id="otp0" autofocus>
+                            <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" id="otp1">
+                            <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" id="otp2">
+                            <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" id="otp3">
+                            <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" id="otp4">
+                            <input type="text" class="otp-digit" maxlength="1" inputmode="numeric" id="otp5">
+                        </div>
+
+                        <div class="otp-meta-row">
+                            <span class="otp-countdown" id="countdownPill">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                <span id="timerText">Expires in 10:00</span>
+                            </span>
+                            <button type="button" class="otp-resend-btn" id="resendOtpBtn" disabled>
+                                Resend Code (30s)
+                            </button>
+                        </div>
+
+                        <button type="submit" id="verifyOtpBtn" class="submit-btn">
+                            <span>Verify Code &amp; Continue</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                        </button>
+                    </form>
+
+                    <div class="back-row">
+                        <button type="button" class="back-link" id="backToStep1" style="background:none;border:none;cursor:pointer;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                            Re-enter email address
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ════════ STEP 3: NEW PASSWORD ════════ -->
+                <div class="step-panel" id="step3Panel">
+                    <p class="form-eyebrow">Credential Hardening</p>
+                    <h2 class="page-title">Set New Password</h2>
+                    <p class="page-subtitle">
+                        Create a strong, high-entropy password that complies with organizational policy.
+                    </p>
+
+                    <div id="step3Alert" class="form-alert error" role="alert">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        <span id="step3AlertText"></span>
+                    </div>
+
+                    <form id="step3Form" onsubmit="return false;">
+                        <div class="form-group" style="margin-bottom: 1.1rem;">
+                            <label class="field-label" for="newPassword" style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:0.45rem;color:#334155;">New Password</label>
+                            <div class="input-wrapper">
+                                <span class="input-icon-left" aria-hidden="true">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                </span>
+                                <input
+                                    type="password"
+                                    id="newPassword"
+                                    class="recovery-input has-eye"
+                                    placeholder="••••••••••••"
+                                    required
+                                    autocomplete="new-password"
+                                >
+                                <button type="button" class="input-icon-right" id="toggleNewPw" aria-label="Toggle password visibility">
+                                    <svg id="eyeSvgNew" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Requirements checklist -->
+                        <ul class="pw-checklist">
+                            <li class="pw-req" id="req-len">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/></svg>
+                                8+ characters
+                            </li>
+                            <li class="pw-req" id="req-12">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/></svg>
+                                12+ (Recommended)
+                            </li>
+                            <li class="pw-req" id="req-up">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/></svg>
+                                Uppercase letter
+                            </li>
+                            <li class="pw-req" id="req-low">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/></svg>
+                                Lowercase letter
+                            </li>
+                            <li class="pw-req" id="req-num">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/></svg>
+                                Number (0-9)
+                            </li>
+                            <li class="pw-req" id="req-spc">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/></svg>
+                                Special symbol
+                            </li>
+                        </ul>
+
+                        <div class="form-group" style="margin-bottom: 1.25rem;">
+                            <label class="field-label" for="confirmPassword" style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:0.45rem;color:#334155;">Confirm Password</label>
+                            <div class="input-wrapper">
+                                <span class="input-icon-left" aria-hidden="true">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+                                </span>
+                                <input
+                                    type="password"
+                                    id="confirmPassword"
+                                    class="recovery-input has-eye"
+                                    placeholder="••••••••••••"
+                                    required
+                                    autocomplete="new-password"
+                                >
+                                <button type="button" class="input-icon-right" id="toggleConfPw" aria-label="Toggle password visibility">
+                                    <svg id="eyeSvgConf" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                                </button>
+                            </div>
+                        </div>
+
+                        <button type="submit" id="resetSubmitBtn" class="submit-btn">
+                            <span>Update Password &amp; Sign In</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- ════════ STEP 4: SUCCESS MODAL / PANEL ════════ -->
+                <div class="step-panel" id="stepSuccessPanel">
+                    <div style="text-align:center;padding:1.5rem 0;">
+                        <div style="width:64px;height:64px;background:#ecfdf5;border:2px solid #a7f3d0;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1.5rem;box-shadow:0 8px 24px rgba(16,185,129,0.2);">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        </div>
+                        <p class="form-eyebrow" style="color:#059669;">Verification Complete</p>
+                        <h2 class="page-title">Password Reset!</h2>
+                        <p class="page-subtitle" style="margin-bottom:2rem;">
+                            Your password has been successfully updated with full cryptographic hardening. You can now sign in to your SecurePass AI account.
+                        </p>
+                        <a href="/login" class="submit-btn" style="text-decoration:none;">
+                            <span>Continue to Sign In</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                        </a>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Interactive script handling multi-step transitions, OTP auto-advance & countdown -->
+    <script>
+        (function () {
+            let currentEmail = '';
+            let verifiedToken = '';
+            let countdownInterval = null;
+            let resendCooldown = 30;
+            let resendTimer = null;
+
+            // DOM elements
+            const step1Panel = document.getElementById('step1Panel');
+            const step2Panel = document.getElementById('step2Panel');
+            const step3Panel = document.getElementById('step3Panel');
+            const stepSuccessPanel = document.getElementById('stepSuccessPanel');
+
+            const stepPill = document.getElementById('stepPill');
+            const dot1 = document.getElementById('dot1');
+            const dot2 = document.getElementById('dot2');
+            const dot3 = document.getElementById('dot3');
+            const badgeSvg = document.getElementById('badgeSvg');
+
+            // SVGs for badge
+            const mailIconSvg = '<rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>';
+            const otpIconSvg = '<rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>';
+            const keyIconSvg = '<path d="m21 2-2 2m-1.5 1.5L14 9m-1.5 1.5-1.5 1.5m-3 3a4.24 4.24 0 1 1 6-6l6-6v4h4v4h-2v2h-2z"/>';
+            const checkIconSvg = '<polyline points="20 6 9 17 4 12"/>';
+
+            function showAlert(alertEl, textEl, message, isError = true) {
+                alertEl.className = 'form-alert ' + (isError ? 'error' : 'success') + ' visible';
+                textEl.textContent = message;
+            }
+            function hideAlert(alertEl) {
+                alertEl.className = 'form-alert';
+            }
+
+            function setStep(step) {
+                step1Panel.classList.remove('active');
+                step2Panel.classList.remove('active');
+                step3Panel.classList.remove('active');
+                stepSuccessPanel.classList.remove('active');
+
+                dot1.className = 'step-dot';
+                dot2.className = 'step-dot';
+                dot3.className = 'step-dot';
+
+                if (step === 1) {
+                    step1Panel.classList.add('active');
+                    dot1.classList.add('active');
+                    stepPill.textContent = 'Step 1 of 3 · Email';
+                    badgeSvg.innerHTML = mailIconSvg;
+                } else if (step === 2) {
+                    step2Panel.classList.add('active');
+                    dot2.classList.add('active');
+                    stepPill.textContent = 'Step 2 of 3 · 2FA OTP';
+                    badgeSvg.innerHTML = otpIconSvg;
+                    document.getElementById('otp0').focus();
+                    startCountdown(600); // 10 minutes
+                    startResendCooldown();
+                } else if (step === 3) {
+                    step3Panel.classList.add('active');
+                    dot3.classList.add('active');
+                    stepPill.textContent = 'Step 3 of 3 · New Password';
+                    badgeSvg.innerHTML = keyIconSvg;
+                    document.getElementById('newPassword').focus();
+                } else if (step === 4) {
+                    stepSuccessPanel.classList.add('active');
+                    stepPill.textContent = 'Complete';
+                    badgeSvg.innerHTML = checkIconSvg;
+                }
+            }
+
+            // Countdown timer for OTP
+            function startCountdown(seconds) {
+                if (countdownInterval) clearInterval(countdownInterval);
+                let remaining = seconds;
+                const timerText = document.getElementById('timerText');
+                const pill = document.getElementById('countdownPill');
+
+                function update() {
+                    const m = Math.floor(remaining / 60);
+                    const s = remaining % 60;
+                    timerText.textContent = `Expires in ${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+                    if (remaining <= 60) {
+                        pill.classList.add('expiring');
+                    } else {
+                        pill.classList.remove('expiring');
+                    }
+                    if (remaining <= 0) {
+                        clearInterval(countdownInterval);
+                        timerText.textContent = 'Code expired';
+                        showAlert(document.getElementById('step2Alert'), document.getElementById('step2AlertText'), 'Your verification code has expired. Please click Resend Code.');
+                    }
+                    remaining--;
+                }
+                update();
+                countdownInterval = setInterval(update, 1000);
+            }
+
+            function startResendCooldown() {
+                const btn = document.getElementById('resendOtpBtn');
+                btn.disabled = true;
+                let count = 30;
+                btn.textContent = `Resend Code (${count}s)`;
+                if (resendTimer) clearInterval(resendTimer);
+                resendTimer = setInterval(() => {
+                    count--;
+                    if (count <= 0) {
+                        clearInterval(resendTimer);
+                        btn.disabled = false;
+                        btn.textContent = 'Resend Code';
+                    } else {
+                        btn.textContent = `Resend Code (${count}s)`;
+                    }
+                }, 1000);
+            }
+
+            // ── Step 1 Form Handler ────────────────────────
+            const step1Form = document.getElementById('step1Form');
+            step1Form.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const emailInput = document.getElementById('resetEmail');
+                const alertEl = document.getElementById('step1Alert');
+                const alertText = document.getElementById('step1AlertText');
+                const sendBtn = document.getElementById('sendBtn');
+                const email = emailInput.value.trim().toLowerCase();
+
+                hideAlert(alertEl);
+                if (!email || !email.includes('@') || !email.includes('.')) {
+                    showAlert(alertEl, alertText, 'Please enter a valid corporate email address.');
+                    emailInput.focus();
+                    return;
+                }
+
+                sendBtn.disabled = true;
+                sendBtn.innerHTML = '<span class="spinner-border"></span> Sending…';
+
+                try {
+                    const res = await fetch('/api/auth/forgot-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email })
+                    });
+                    const data = await res.json();
+
+                    sendBtn.disabled = false;
+                    sendBtn.innerHTML = '<span>Send Verification Code &amp; Link</span> <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
+
+                    if (!res.ok && res.status !== 200) {
+                        showAlert(alertEl, alertText, data.error || 'Failed to dispatch verification email.');
+                        return;
+                    }
+
+                    currentEmail = email;
+                    document.getElementById('sentEmailDisplay').textContent = email;
+
+                    // If dev simulation provided OTP
+                    if (data.dev_otp) {
+                        document.getElementById('devOtpBanner').style.display = 'block';
+                        document.getElementById('devOtpCode').textContent = data.dev_otp;
+                    } else {
+                        document.getElementById('devOtpBanner').style.display = 'none';
+                    }
+
+                    setStep(2);
+                } catch (err) {
+                    sendBtn.disabled = false;
+                    sendBtn.innerHTML = '<span>Send Verification Code &amp; Link</span>';
+                    showAlert(alertEl, alertText, 'Network error. Please try again.');
+                }
+            });
+
+            // ── Step 2 OTP Digits Navigation ───────────────
+            const otpInputs = [
+                document.getElementById('otp0'),
+                document.getElementById('otp1'),
+                document.getElementById('otp2'),
+                document.getElementById('otp3'),
+                document.getElementById('otp4'),
+                document.getElementById('otp5')
+            ];
+
+            otpInputs.forEach((input, idx) => {
+                input.addEventListener('input', (e) => {
+                    const val = e.target.value.replace(/\D/g, '');
+                    e.target.value = val ? val[0] : '';
+                    if (e.target.value) {
+                        e.target.classList.add('filled');
+                        if (idx < 5) otpInputs[idx + 1].focus();
+                    } else {
+                        e.target.classList.remove('filled');
+                    }
+                    checkOtpCompletion();
+                });
+
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Backspace' && !input.value && idx > 0) {
+                        otpInputs[idx - 1].focus();
+                        otpInputs[idx - 1].value = '';
+                        otpInputs[idx - 1].classList.remove('filled');
+                    }
+                });
+
+                // Paste support
+                input.addEventListener('paste', (e) => {
+                    e.preventDefault();
+                    const pasted = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g, '').slice(0, 6);
+                    if (pasted) {
+                        pasted.split('').forEach((char, i) => {
+                            if (otpInputs[i]) {
+                                otpInputs[i].value = char;
+                                otpInputs[i].classList.add('filled');
+                            }
+                        });
+                        const targetIndex = Math.min(pasted.length, 5);
+                        otpInputs[targetIndex].focus();
+                        checkOtpCompletion();
+                    }
+                });
+            });
+
+            function getEnteredOtp() {
+                return otpInputs.map(i => i.value).join('');
+            }
+
+            function checkOtpCompletion() {
+                const code = getEnteredOtp();
+                if (code.length === 6) {
+                    // Auto-trigger verification
+                    verifyOtpCode(code);
+                }
+            }
+
+            async function verifyOtpCode(code) {
+                const alertEl = document.getElementById('step2Alert');
+                const alertText = document.getElementById('step2AlertText');
+                const verifyBtn = document.getElementById('verifyOtpBtn');
+
+                hideAlert(alertEl);
+                verifyBtn.disabled = true;
+                verifyBtn.innerHTML = '<span class="spinner-border"></span> Verifying…';
+
+                try {
+                    const res = await fetch('/api/auth/verify-otp', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: currentEmail, otp: code })
+                    });
+                    const data = await res.json();
+
+                    verifyBtn.disabled = false;
+                    verifyBtn.innerHTML = '<span>Verify Code &amp; Continue</span> <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>';
+
+                    if (!res.ok) {
+                        showAlert(alertEl, alertText, data.error || 'Verification failed. Check your OTP.');
+                        otpInputs.forEach(i => { i.value = ''; i.classList.remove('filled'); });
+                        otpInputs[0].focus();
+                        return;
+                    }
+
+                    verifiedToken = data.token;
+                    if (countdownInterval) clearInterval(countdownInterval);
+                    setStep(3);
+                } catch (err) {
+                    verifyBtn.disabled = false;
+                    verifyBtn.innerHTML = '<span>Verify Code &amp; Continue</span>';
+                    showAlert(alertEl, alertText, 'Network error. Please try again.');
+                }
+            }
+
+            document.getElementById('step2Form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const code = getEnteredOtp();
+                if (code.length < 6) {
+                    showAlert(document.getElementById('step2Alert'), document.getElementById('step2AlertText'), 'Please enter all 6 digits of the verification code.');
+                    return;
+                }
+                verifyOtpCode(code);
+            });
+
+            document.getElementById('resendOtpBtn').addEventListener('click', () => {
+                document.getElementById('sendBtn').click();
+            });
+
+            document.getElementById('backToStep1').addEventListener('click', () => {
+                if (countdownInterval) clearInterval(countdownInterval);
+                setStep(1);
+            });
+
+            // ── Step 3 Password Strength Meter & Eye Toggles ─
+            const newPw = document.getElementById('newPassword');
+            const confPw = document.getElementById('confirmPassword');
+            const toggleNew = document.getElementById('toggleNewPw');
+            const toggleConf = document.getElementById('toggleConfPw');
+
+            toggleNew.addEventListener('click', () => {
+                const isPw = newPw.type === 'password';
+                newPw.type = isPw ? 'text' : 'password';
+            });
+            toggleConf.addEventListener('click', () => {
+                const isPw = confPw.type === 'password';
+                confPw.type = isPw ? 'text' : 'password';
+            });
+
+            const checkSvg = '<path d="M20 6 9 17l-5-5"/>';
+            const dotSvg = '<circle cx="12" cy="12" r="10"/>';
+
+            function updateReq(id, passed) {
+                const el = document.getElementById(id);
+                if (passed) {
+                    el.classList.add('passed');
+                    el.querySelector('svg').innerHTML = checkSvg;
+                } else {
+                    el.classList.remove('passed');
+                    el.querySelector('svg').innerHTML = dotSvg;
+                }
+            }
+
+            newPw.addEventListener('input', () => {
+                const val = newPw.value;
+                updateReq('req-len', val.length >= 8);
+                updateReq('req-12', val.length >= 12);
+                updateReq('req-up', /[A-Z]/.test(val));
+                updateReq('req-low', /[a-z]/.test(val));
+                updateReq('req-num', /[0-9]/.test(val));
+                updateReq('req-spc', /[^A-Za-z0-9]/.test(val));
+            });
+
+            // ── Step 3 Submit Handler ───────────────────────
+            document.getElementById('step3Form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const alertEl = document.getElementById('step3Alert');
+                const alertText = document.getElementById('step3AlertText');
+                const submitBtn = document.getElementById('resetSubmitBtn');
+
+                hideAlert(alertEl);
+                const p1 = newPw.value;
+                const p2 = confPw.value;
+
+                if (p1 !== p2) {
+                    showAlert(alertEl, alertText, 'Passwords do not match.');
+                    confPw.focus();
+                    return;
+                }
+
+                if (p1.length < 8) {
+                    showAlert(alertEl, alertText, 'Password must be at least 8 characters long.');
+                    newPw.focus();
+                    return;
+                }
+
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border"></span> Updating…';
+
+                try {
+                    const res = await fetch('/api/auth/reset-password', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            token: verifiedToken,
+                            password: p1,
+                            confirm_password: p2
+                        })
+                    });
+                    const data = await res.json();
+
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<span>Update Password &amp; Sign In</span> <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M20 6 9 17l-5-5"/></svg>';
+
+                    if (!res.ok) {
+                        showAlert(alertEl, alertText, data.error || 'Failed to update password.');
+                        return;
+                    }
+
+                    setStep(4);
+                    // Automatic redirect after 4 seconds
+                    setTimeout(() => {
+                        window.location.href = '/login?reset=success';
+                    }, 4000);
+                } catch (err) {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<span>Update Password &amp; Sign In</span>';
+                    showAlert(alertEl, alertText, 'Network error. Please try again.');
+                }
+            });
+
+            // Check URL for token parameter (Direct 1-Click Link from Brevo email)
+            const urlParams = new URLSearchParams(window.location.search);
+            const directToken = urlParams.get('token');
+            if (directToken) {
+                verifiedToken = directToken;
+                setStep(3);
+            }
+        })();
+    </script>
+</body>
+</html>

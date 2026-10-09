@@ -1,0 +1,17 @@
+# Test-only dependencies for backend/tests/.
+#
+# Kept separate from the project root's requirements.txt (which ships
+# inside the Docker image — see backend/.dockerignore, which already
+# excludes tests/ from the build context) so pytest and its helpers never
+# reach the production container.
+#
+# Install alongside the main requirements when running tests locally or
+# in CI:
+#   pip install -r requirements.txt -r backend/tests/requirements-test.txt
+
+pytest==9.1.1
+
+# In-memory stand-in for the Redis-backed JWT revocation blocklist
+# (extensions.py). Lets backend/tests/conftest.py exercise the real
+# issue/verify/revoke JWT flow without a live Redis instance.
+fakeredis==2.37.0

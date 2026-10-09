@@ -1,0 +1,55 @@
+# .dockerignore — operative ignore file for `docker build -f backend/Dockerfile .`
+# (context = project root). Kept in sync with backend/.dockerignore — see
+# the note there for why two copies exist.
+
+# Secrets / environment
+.env
+*.env
+!.env.example
+
+# Version control
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Tests
+tests/
+test_*.py
+*_test.py
+
+# Logs
+logs/
+*.log
+
+# Local databases (sqlite dev fallback — never ship into the image)
+*.db
+*.sqlite
+*.sqlite3
+
+# Generated report output (regenerated at runtime)
+frontend/static/reports/output/
+*.pdf
+
+# Editor / OS cruft
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Windows dev-only scripts — irrelevant inside a Linux container
+*.ps1
+*.bat
+
+# Docs not needed at runtime
+README.md
