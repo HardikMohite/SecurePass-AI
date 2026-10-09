@@ -105,19 +105,16 @@
 
     /* ─── governance config & card render ────────────────────────── */
     function getGovernanceConfig() {
-        let defaultOrg = 'Hardik Enterprise';
-        try {
-            const uStr = localStorage.getItem('securepass_user') || sessionStorage.getItem('securepass_user');
-            if (uStr) {
-                const u = JSON.parse(uStr);
-                const uname = u.username || (u.email ? u.email.split('@')[0] : '');
-                if (uname) defaultOrg = (uname.charAt(0).toUpperCase() + uname.slice(1)) + ' Enterprise';
-            }
-        } catch {}
+        let defaultOrg = 'Acme Enterprise';
+        const currentUser = (window.S && window.S.user) || null;
+        if (currentUser) {
+            const uname = currentUser.username || (currentUser.email ? currentUser.email.split('@')[0] : '');
+            if (uname) defaultOrg = (uname.charAt(0).toUpperCase() + uname.slice(1)) + ' Enterprise';
+        }
 
         let cfg = {
             orgName: defaultOrg,
-            domain: 'hardik.enterprise',
+            domain: 'acme.com',
             industry: 'Technology & Cloud SaaS',
             cisoName: 'Chief Information Security Officer (CISO)',
             minLen: 14,
@@ -126,20 +123,23 @@
             companyAiPolicy: null
         };
 
-        // Check for generated company AI policy
-        try {
-            const savedCompanyPolicy = localStorage.getItem('securepass_company_policy');
-            if (savedCompanyPolicy) {
-                const cp = JSON.parse(savedCompanyPolicy);
-                cfg.orgName = cp.company_name || cfg.orgName;
-                cfg.domain = cp.company_domain || cfg.domain;
-                cfg.industry = cp.company_industry || cfg.industry;
-                cfg.cisoName = cp.ciso_name || cfg.cisoName;
-                cfg.minLen = cp.technical_controls?.min_length_standard || cfg.minLen;
-                cfg.timeout = cp.technical_controls?.inactivity_lockout_mins || cfg.timeout;
-                cfg.companyAiPolicy = cp;
-            }
-        } catch {}
+        const uid = currentUser ? currentUser.id : null;
+        if (uid) {
+            // Check for user-scoped generated company AI policy
+            try {
+                const savedCompanyPolicy = localStorage.getItem(`securepass_company_policy_u${uid}`);
+                if (savedCompanyPolicy) {
+                    const cp = JSON.parse(savedCompanyPolicy);
+                    cfg.orgName = cp.company_name || cfg.orgName;
+                    cfg.domain = cp.company_domain || cfg.domain;
+                    cfg.industry = cp.company_industry || cfg.industry;
+                    cfg.cisoName = cp.ciso_name || cfg.cisoName;
+                    cfg.minLen = cp.technical_controls?.min_length_standard || cfg.minLen;
+                    cfg.timeout = cp.technical_controls?.inactivity_lockout_mins || cfg.timeout;
+                    cfg.companyAiPolicy = cp;
+                }
+            } catch {}
+        }
 
         if (window._currentCompanyPolicy) {
             const cp = window._currentCompanyPolicy;
@@ -152,18 +152,20 @@
             cfg.companyAiPolicy = cp;
         }
 
-        try {
-            const saved = localStorage.getItem('securepass_aip_config');
-            if (saved) {
-                const parsed = JSON.parse(saved);
-                if (parsed.orgName && parsed.orgName !== 'Acme Corporation') cfg.orgName = parsed.orgName;
-                if (parsed.cisoName) cfg.cisoName = parsed.cisoName;
-                if (parsed.minLen) cfg.minLen = parsed.minLen;
-                if (parsed.timeout) cfg.timeout = parsed.timeout;
-                if (parsed.domain) cfg.domain = parsed.domain;
-                if (parsed.industry) cfg.industry = parsed.industry;
-            }
-        } catch {}
+        if (uid) {
+            try {
+                const saved = localStorage.getItem(`securepass_aip_config_u${uid}`);
+                if (saved) {
+                    const parsed = JSON.parse(saved);
+                    if (parsed.orgName && parsed.orgName !== 'Acme Corporation') cfg.orgName = parsed.orgName;
+                    if (parsed.cisoName) cfg.cisoName = parsed.cisoName;
+                    if (parsed.minLen) cfg.minLen = parsed.minLen;
+                    if (parsed.timeout) cfg.timeout = parsed.timeout;
+                    if (parsed.domain) cfg.domain = parsed.domain;
+                    if (parsed.industry) cfg.industry = parsed.industry;
+                }
+            } catch {}
+        }
 
         if (window._aipCustomConfig) {
             if (window._aipCustomConfig.orgName && window._aipCustomConfig.orgName !== 'Acme Corporation') {
@@ -212,10 +214,10 @@
             latest = {
                 id: 'active_session',
                 isLive: true,
-                filename: liveResults.filename || window.S._datasetName || 'dataset.txt',
+                filename: liveResults.filename || window.S._datasetName || 'audit.txt',
                 created_at: new Date().toISOString(),
                 risk_score: ov.risk_score != null ? ov.risk_score : (liveResults.risk_score != null ? liveResults.risk_score : (ov.safety_score != null ? (100 - ov.safety_score) : 49)),
-                total_passwords: ov.total_passwords || (window.S._passwords ? window.S._passwords.length : 1666),
+                total_passwords: ov.total_passwords || (window.S._passwords ? window.S._passwords.length : 0),
             };
         } else if (_historyItems && _historyItems.length > 0) {
             latest = { ..._historyItems[0], isLive: false };

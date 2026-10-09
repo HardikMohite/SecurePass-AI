@@ -24,7 +24,8 @@ import os
 import random
 import string
 import json
-from typing import Any, Dict, List
+import re
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
@@ -699,38 +700,146 @@ def _fallback_company_policy(
     }
 
 
-def lookup_company_domain(company_name: str, domain: str) -> Dict[str, Any]:
+RESERVED_FAKE_TLDS = {
+    'fake', 'test', 'example', 'invalid', 'localhost', 'local',
+    'internal', 'dummy', 'temp', 'null', 'corp', 'lan', 'onion', 'demo'
+}
+
+
+def validate_domain_name(domain: str) -> Tuple[bool, str]:
     """
-    Search domain and company information using web threat intelligence and Groq AI.
-    If company doesn't exist or is ambiguous without a domain, returns requires_domain=True.
+    Validates domain syntax according to RFC 1035 / RFC 1123.
+    Rejects invalid formats, missing TLDs, and reserved fake/test extensions.
+    Returns (is_valid, cleaned_domain_or_error_message).
+    """
+    cleaned = (domain or '').strip().lower()
+    cleaned = cleaned.replace('https://', '').replace('http://', '').split('/')[0].split(':')[0].strip('.')
+
+    if not cleaned:
+        return False, "Domain cannot be empty."
+
+    if len(cleaned) > 253:
+        return False, "Domain exceeds maximum allowable length of 253 characters."
+
+    parts = cleaned.split('.')
+    if len(parts) < 2:
+        return False, f'"{cleaned}" is missing a top-level domain (e.g. .com, .org).'
+
+    tld = parts[-1]
+    if not tld.isalpha() or len(tld) < 2:
+        return False, f'"{tld}" is not a valid top-level domain extension.'
+
+    if tld in RESERVED_FAKE_TLDS:
+        return False, f'"{tld}" is a reserved or non-routable extension, not an active public domain.'
+
+    for part in parts:
+        if not part or len(part) > 63:
+            return False, "Domain labels must be between 1 and 63 characters."
+        if part.startswith('-') or part.endswith('-'):
+            return False, "Domain labels cannot start or end with a hyphen."
+        if not re.match(r'^[a-z0-9-]+$', part):
+            return False, f'Invalid character in domain label: "{part}".'
+
+    return True, cleaned
+
+
+def verify_domain_dns(domain: str) -> Tuple[bool, Optional[str]]:
+    """
+    Attempts to resolve domain host records via DNS.
+    Returns (is_resolved, resolved_ip).
     """
     import socket
 
-    company_name = (company_name or '').strip()
-    domain = (domain or '').strip().lower().replace('https://', '').replace('http://', '').split('/')[0].split(':')[0]
+    try:
+        ip = socket.gethostbyname(domain)
+        if ip:
+            return True, ip
+    except (socket.gaierror, socket.herror, OSError):
+        pass
 
-    # If domain is not provided:
-    if not domain:
-        # If company name is missing, vague or generic, ask for domain
-        if not company_name or len(company_name) < 3 or company_name.lower() in ('unknown', 'test', 'demo', 'none', 'n/a', 'company', 'asdf'):
+    try:
+        addrs = socket.getaddrinfo(domain, None)
+        if addrs:
+            ip = addrs[0][4][0]
+            return True, ip
+    except Exception:
+        pass
+
+    return False, None
+
+
+def lookup_company_domain(company_name: str, domain: str) -> Dict[str, Any]:
+    """
+    Search domain and company information using web threat intelligence and Groq AI.
+    Strictly verifies domain syntax and live DNS reachability.
+    Fake, unregistered, or inactive domains are sensed and rejected with found=False.
+    """
+    company_name = (company_name or '').strip()
+    raw_domain = (domain or '').strip().lower().replace('https://', '').replace('http://', '').split('/')[0].split(':')[0].strip('.')
+
+    # 1. If no domain was provided by user
+    if not raw_domain:
+        if not company_name or len(company_name) < 3 or company_name.lower() in ('unknown', 'test', 'demo', 'none', 'n/a', 'company', 'asdf', 'fake'):
             return {
                 'found': False,
+                'is_fake': False,
                 'requires_domain': True,
-                'message': 'Company not recognized in corporate registries. Please provide the company domain name (e.g. acme.com) to search domain intelligence.',
+                'message': 'Company not recognized in corporate registries. Please provide the official corporate website domain (e.g. acme.com).',
                 'company_info': None
             }
         # Attempt domain synthesis from company name
-        domain = company_name.lower().replace(' ', '').replace(',', '').replace('.', '') + '.com'
+        synth_slug = re.sub(r'[^a-z0-9]', '', company_name.lower())
+        if not synth_slug:
+            return {
+                'found': False,
+                'is_fake': False,
+                'requires_domain': True,
+                'message': 'Please provide the official corporate website domain (e.g. acme.com).',
+                'company_info': None
+            }
+        raw_domain = f"{synth_slug}.com"
 
-    # Check DNS resolution
-    dns_resolved = False
-    resolved_ip = None
-    try:
-        resolved_ip = socket.gethostbyname(domain)
-        dns_resolved = True
-    except Exception:
-        dns_resolved = False
+    # 2. Validate domain syntax & check for fake/reserved TLDs
+    valid_syntax, clean_domain_or_err = validate_domain_name(raw_domain)
+    if not valid_syntax:
+        return {
+            'found': False,
+            'is_fake': True,
+            'dns_resolved': False,
+            'requires_domain': True,
+            'error': clean_domain_or_err,
+            'message': f'Invalid or fake domain: {clean_domain_or_err}',
+            'company_info': {
+                'found': False,
+                'domain': raw_domain,
+                'dns_resolved': False,
+                'is_fake': True,
+                'status': 'invalid_format'
+            }
+        }
 
+    domain = clean_domain_or_err
+
+    # 3. Verify DNS resolution (detect fake or unregistered domains)
+    dns_resolved, resolved_ip = verify_domain_dns(domain)
+    if not dns_resolved:
+        return {
+            'found': False,
+            'is_fake': True,
+            'dns_resolved': False,
+            'requires_domain': True,
+            'error': f'Domain resolution failed for "{domain}" (NXDOMAIN). Domain does not exist or has no active DNS records.',
+            'message': f'Domain "{domain}" could not be resolved via public DNS. It appears to be fake, unregistered, or inactive. Please provide an active corporate domain.',
+            'company_info': {
+                'found': False,
+                'domain': domain,
+                'dns_resolved': False,
+                'is_fake': True,
+                'status': 'unresolved_fake_domain'
+            }
+        }
+
+    # 4. Domain is verified active on DNS. Retrieve threat intelligence.
     api_key = (
         os.environ.get('SECUREPASS_GROQ_API_KEY', '').strip()
         or os.environ.get('GROQ_API_KEY', '').strip()
@@ -738,7 +847,7 @@ def lookup_company_domain(company_name: str, domain: str) -> Dict[str, Any]:
 
     if api_key:
         prompt = f"""You are an elite corporate intelligence analyst and threat researcher.
-Research the organization with name "{company_name or domain}" and official domain "{domain}".
+Research the organization with name "{company_name or domain}" and official verified domain "{domain}".
 Respond with valid JSON:
 {{
     "found": true,
@@ -749,7 +858,6 @@ Respond with valid JSON:
     "attack_surface": ["3 specific cyber attack vectors relevant to this industry and domain"],
     "infrastructure_detected": ["3 detected infrastructure items e.g. Cloud SSO, Public APIs, Remote Engineering Workforce"]
 }}
-If the company is completely fictional or nonsensical, you can still formulate a standard threat profile, but set "found": true.
 """
         try:
             raw = _call_groq_api(api_key, prompt)
@@ -760,10 +868,15 @@ If the company is completely fictional or nonsensical, you can still formulate a
             if cleaned.endswith('```'):
                 cleaned = cleaned[:-3]
             data = json.loads(cleaned.strip())
-            data['dns_resolved'] = dns_resolved
+            data['found'] = True
+            data['dns_resolved'] = True
             data['resolved_ip'] = resolved_ip
+            data['is_fake'] = False
             return {
-                'found': data.get('found', True),
+                'found': True,
+                'is_fake': False,
+                'dns_resolved': True,
+                'resolved_ip': resolved_ip,
                 'requires_domain': False,
                 'message': 'Company threat intelligence discovered successfully.',
                 'company_info': data
@@ -771,21 +884,25 @@ If the company is completely fictional or nonsensical, you can still formulate a
         except Exception as e:
             logger.warning('AI lookup for domain %s failed: %s — using heuristic fallback', domain, e)
 
-    # Heuristic fallback lookup
+    # Heuristic fallback for verified live domain
     name_guess = company_name or domain.split('.')[0].capitalize()
     return {
         'found': True,
+        'is_fake': False,
+        'dns_resolved': True,
+        'resolved_ip': resolved_ip,
         'requires_domain': False,
         'message': f'Domain threat intelligence synthesized for {domain}',
         'company_info': {
             'found': True,
+            'is_fake': False,
             'name': name_guess,
             'domain': domain,
             'industry': 'Technology & Cloud SaaS',
-            'summary': f"{name_guess} ({domain}) operates an active corporate digital infrastructure. Web DNS active on {resolved_ip or 'cloud proxy'}.",
+            'summary': f"{name_guess} ({domain}) operates an active corporate digital infrastructure. Verified live on host IP: {resolved_ip}.",
             'attack_surface': ['Credential Stuffing on Corporate SSO', 'Targeted Phishing & Social Engineering', 'API Endpoint Abuse'],
             'infrastructure_detected': ['Corporate Single Sign-On', 'Public Cloud Services', 'Remote Workforce'],
-            'dns_resolved': dns_resolved,
+            'dns_resolved': True,
             'resolved_ip': resolved_ip
         }
     }

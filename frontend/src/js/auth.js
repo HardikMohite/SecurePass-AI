@@ -112,7 +112,26 @@ async function checkAuth() {
     return null;
 }
 
+function clearUserStorage() {
+    try {
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && (
+                key.startsWith('sp_') ||
+                key.startsWith('securepass_')
+            ) && key !== 'sp-theme' && key !== 'securepass_sidebar_pinned') {
+                keysToRemove.push(key);
+            }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+        sessionStorage.clear();
+        document.documentElement.classList.remove('is-auth-cached');
+    } catch (e) {}
+}
+
 async function login(identifier, password, remember) {
+    clearUserStorage();
     const r = await request('/login', {
         method: 'POST',
         body: JSON.stringify({
@@ -137,6 +156,7 @@ async function login(identifier, password, remember) {
 }
 
 async function register(username, email, password) {
+    clearUserStorage();
     const r = await request('/register', { method: 'POST', body: JSON.stringify({ username, email, password }) });
     if (r.ok) {
         _user = r.data.user || r.data;
@@ -156,12 +176,7 @@ async function logout() {
         await request('/logout', { method: 'POST' });
     } catch {}
     _user = null;
-    try {
-        localStorage.removeItem('sp_user_profile');
-        localStorage.removeItem('sp_active_analysis');
-        sessionStorage.removeItem('sp_active_analysis');
-        document.documentElement.classList.remove('is-auth-cached');
-    } catch {}
+    clearUserStorage();
 }
 
 function validateEmail(e) {

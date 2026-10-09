@@ -19,6 +19,23 @@ window.HIBP = (function () {
     // NEVER stores passwords or full hashes. Prefix is public knowledge.
     const _prefixCache = new Map();
 
+    // Session cache for checked password results
+    const _resultCache = new Map();
+
+    function getCached(pwd) {
+        if (!pwd || typeof pwd !== 'string') return null;
+        return _resultCache.get(pwd) || null;
+    }
+
+    function setCached(pwd, result) {
+        if (!pwd || !result) return;
+        if (_resultCache.size > 500) {
+            const firstKey = _resultCache.keys().next().value;
+            _resultCache.delete(firstKey);
+        }
+        _resultCache.set(pwd, result);
+    }
+
     async function sha1Hex(str) {
         const encoder = new TextEncoder();
         const data = encoder.encode(str);
@@ -89,6 +106,9 @@ window.HIBP = (function () {
     async function checkPassword(password) {
         if (!password) return { error: 'Password required' };
 
+        const cached = getCached(password);
+        if (cached) return cached;
+
         try {
             const hashHex = await sha1Hex(password);
             const prefix = hashHex.slice(0, 5);
@@ -110,7 +130,7 @@ window.HIBP = (function () {
             const count = suffixMap.get(suffix) || 0;
             const breached = count > 0;
 
-            return {
+            const res = {
                 status: 'ok',
                 breached: breached,
                 is_breached: breached,
@@ -118,6 +138,8 @@ window.HIBP = (function () {
                 breach_count: count,
                 checked_at: Date.now()
             };
+            setCached(password, res);
+            return res;
         } catch (err) {
             console.warn('HIBP k-Anonymity client error:', err);
             return {

@@ -111,39 +111,38 @@
     function saveActiveAnalysis(results, datasetName, passwords, userId) {
         if (!results) return;
         S.results = results;
-        S._datasetName = datasetName || S._datasetName || 'dataset.txt';
+        S._datasetName = datasetName || S._datasetName || 'audit.txt';
         if (passwords && passwords.length) {
             S._passwords = passwords;
-        }
-        if (results.hibp && results.hibp.status === 'ok') {
-            try {
-                localStorage.setItem('sp_hibp_dataset_stats', JSON.stringify(results.hibp));
-            } catch {}
         }
         window.S = S;
         // Only persist authenticated user analysis — never save guest/default data to localStorage
         if (!userId) return;
         try {
+            if (results.hibp && results.hibp.status === 'ok') {
+                localStorage.setItem(`sp_hibp_dataset_stats_u${userId}`, JSON.stringify(results.hibp));
+            }
             const payload = {
                 results: S.results,
                 datasetName: S._datasetName,
                 passwords: (S._passwords || []).slice(0, 5000),
                 timestamp: Date.now(),
-                userId: userId  // ← tag with user identity to prevent cross-user leaks
+                userId: String(userId)
             };
-            localStorage.setItem('sp_active_analysis', JSON.stringify(payload));
-            sessionStorage.setItem('sp_active_analysis', JSON.stringify(payload));
+            localStorage.setItem(`sp_active_analysis_u${userId}`, JSON.stringify(payload));
+            sessionStorage.setItem(`sp_active_analysis_u${userId}`, JSON.stringify(payload));
         } catch (e) { }
     }
 
-    function loadActiveAnalysis() {
+    function loadActiveAnalysis(userId) {
+        if (!userId) return false;
         try {
-            const raw = sessionStorage.getItem('sp_active_analysis') || localStorage.getItem('sp_active_analysis');
+            const raw = sessionStorage.getItem(`sp_active_analysis_u${userId}`) || localStorage.getItem(`sp_active_analysis_u${userId}`);
             if (raw) {
                 const parsed = JSON.parse(raw);
-                if (parsed && parsed.results && (parsed.results.overview || parsed.results.compliance)) {
+                if (parsed && String(parsed.userId) === String(userId) && parsed.results && (parsed.results.overview || parsed.results.compliance)) {
                     S.results = parsed.results;
-                    S._datasetName = parsed.datasetName || 'dataset.txt';
+                    S._datasetName = parsed.datasetName || 'audit.txt';
                     if (parsed.passwords && parsed.passwords.length) {
                         S._passwords = parsed.passwords;
                     }
@@ -156,11 +155,16 @@
     }
 
     function restoreAnalysisUI(data, dsName) {
+        if (!data || (!data.overview && !data.compliance)) return;
         const uc = $('uploadControls'); if (uc) uc.style.display = 'none';
         const cv = $('auditCompletedView'); if (cv) cv.style.display = 'block';
+        const pas = $('preAuditState'); if (pas) pas.style.display = 'none';
+        const inp = $('inputSection'); if (inp) inp.style.display = 'block';
+        const resSec = $('resultsSection'); if (resSec) resSec.style.display = 'block';
         const cfn = $('completedFileName'), ccnt = $('completedPwCount');
-        if (cfn) cfn.textContent = dsName || 'dataset.txt';
-        if (ccnt) ccnt.textContent = `${(data.overview?.total_passwords || 1666).toLocaleString()} passwords audited`;
+        if (cfn) cfn.textContent = dsName || 'audit.txt';
+        const total = (data.overview?.total_passwords || data.total_passwords || 0);
+        if (ccnt) ccnt.textContent = `${total.toLocaleString()} passwords audited`;
         const pill = $('ingestionStatusPill');
         if (pill) { pill.textContent = 'AUDITED'; pill.style.color = '#10b981'; }
 
@@ -174,42 +178,17 @@
     }
 
     async function initActiveAnalysis() {
-        // SECURITY: Guests should never see another user's saved analysis from localStorage
-        // Only load passwords for the terminal simulation (not the analysis results)
-        if (!S._passwords || !S._passwords.length) {
-            try {
-                const resp = await fetch('/dataset.txt');
-                if (resp.ok) {
-                    const text = await resp.text();
-                    const list = text.split('\n').map(l => l.trim()).filter(Boolean);
-                    if (list.length) {
-                        S._passwords = list;
-                        S._datasetName = S._datasetName || 'dataset.txt';
-                    }
-                }
-            } catch { }
-        }
+        // SECURITY: Never automatically load /dataset.txt into memory on startup
+        S._passwords = S._passwords || [];
 
         // Try to restore saved analysis — but ONLY for authenticated users,
         // and only if the stored session belongs to this user's account.
         if (S.user) {
             const userId = S.user.id || S.user.email || S.user.username;
-            const hasStored = loadActiveAnalysis();
+            const hasStored = loadActiveAnalysis(userId);
             if (hasStored && S.results) {
-                // Verify the stored analysis belongs to this user (or has no user tag = legacy)
-                const raw = sessionStorage.getItem('sp_active_analysis') || localStorage.getItem('sp_active_analysis');
-                let storedUserId = null;
-                try { storedUserId = JSON.parse(raw)?.userId; } catch { }
-                if (!storedUserId || storedUserId === userId) {
-                    restoreAnalysisUI(S.results, S._datasetName);
-                    return;
-                }
-                // Stored data belongs to a different user — clear it
-                try {
-                    localStorage.removeItem('sp_active_analysis');
-                    sessionStorage.removeItem('sp_active_analysis');
-                } catch { }
-                S.results = null;
+                restoreAnalysisUI(S.results, S._datasetName);
+                return;
             }
 
             // Try to fetch latest report from authenticated user's server history
@@ -222,9 +201,10 @@
                         const rRes = await fetch(`/api/report/${items[0].id}`, { credentials: 'include' });
                         if (rRes.ok) {
                             const rData = await rRes.json().catch(() => null);
-                            if (rData && (rData.overview || rData.compliance)) {
-                                saveActiveAnalysis(rData, items[0].filename || 'dataset.txt', S._passwords, userId);
-                                restoreAnalysisUI(rData, items[0].filename || 'dataset.txt');
+                            const analysisData = (rData && rData.analysis_data) ? rData.analysis_data : rData;
+                            if (analysisData && (analysisData.overview || analysisData.compliance)) {
+                                saveActiveAnalysis(analysisData, items[0].filename || 'audit.txt', S._passwords, userId);
+                                restoreAnalysisUI(analysisData, items[0].filename || 'audit.txt');
                                 return;
                             }
                         }
@@ -233,9 +213,9 @@
             } catch (e) { }
         }
 
-        // Guest or no prior data: show sample/default dataset analysis
-        // Guests always see the default — never another user's uploaded data
-        restoreAnalysisUI(DEFAULT_DATASET_ANALYSIS, 'Sample Dataset (dataset.txt)');
+        // Newly registered user, guest, or user without past analyses:
+        // Show clean initial upload state (never sample dataset or other users' records)
+        resetDashboard();
     }
 
     const $ = id => document.getElementById(id);
@@ -497,6 +477,24 @@
         updateGuestQuotaUI();
     }
 
+    function clearUserStorage() {
+        try {
+            const keysToRemove = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (
+                    key.startsWith('sp_') ||
+                    key.startsWith('securepass_')
+                ) && key !== 'sp-theme' && key !== 'securepass_sidebar_pinned') {
+                    keysToRemove.push(key);
+                }
+            }
+            keysToRemove.forEach(k => localStorage.removeItem(k));
+            sessionStorage.clear();
+            document.documentElement.classList.remove('is-auth-cached');
+        } catch (e) {}
+    }
+
     function setupLogout() {
         const btn = $('logoutBtn');
         if (!btn) return;
@@ -508,17 +506,13 @@
                     await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
                 }
             } catch { }
-            // SECURITY: Clear stored profile and analysis on logout to prevent data leaking
-            try {
-                localStorage.removeItem('sp_user_profile');
-                localStorage.removeItem('sp_active_analysis');
-                sessionStorage.removeItem('sp_active_analysis');
-                document.documentElement.classList.remove('is-auth-cached');
-            } catch { }
+            clearUserStorage();
             S.user = null;
             S.results = null;
             S._passwords = [];
             S._datasetName = '';
+            _aipCurrentPolicy = null;
+            window._currentCompanyPolicy = null;
             showGuestNav();
             toast('Logged out.', 'info');
             resetDashboard();
@@ -2462,17 +2456,6 @@
 
             async function getPasswordsCorpus() {
                 if (S._passwords && S._passwords.length > 0) return S._passwords;
-                try {
-                    const r = await fetch('/dataset.txt');
-                    if (r.ok) {
-                        const txt = await r.text();
-                        const lines = txt.split('\n').map(x => x.trim()).filter(Boolean);
-                        if (lines.length > 0) {
-                            S._passwords = lines;
-                            return lines;
-                        }
-                    }
-                } catch (e) { }
                 return [];
             }
 
@@ -2480,7 +2463,12 @@
                 currentFw = fwKey || 'nist';
                 const fw = FW_INFO[currentFw] || FW_INFO.nist;
                 const passwords = await getPasswordsCorpus();
-                const datasetName = S._datasetName || 'dataset.txt';
+                const datasetName = S._datasetName || 'audit.txt';
+
+                if (!passwords.length) {
+                    toast('No active password dataset. Please upload a file on the Dashboard to inspect compliance.', 'info');
+                    return;
+                }
 
                 // Evaluate each password
                 evaluatedItems = passwords.map((p, index) => {
@@ -4393,20 +4381,11 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
             pwList = S._passwords || [];
         }
         if (!singlePw && !pwList.length) {
-            try {
-                const resp = await fetch('/dataset.txt');
-                if (resp.ok) {
-                    const text = await resp.text();
-                    pwList = text.split('\n').map(l => l.trim()).filter(Boolean);
-                    S._passwords = pwList;
-                }
-            } catch { }
-        }
-        if (!singlePw && !pwList.length) {
-            pwList = ['password123', 'admin2026', 'welcome1', 'qwerty1234', 'Spring2026!', 'iloveyou99', 'shadow123', 'dragon2026', 'letmein123', 'master123'];
+            toast('No password dataset loaded. Please upload a dataset on the Dashboard or enter a target password.', 'info');
+            return;
         }
 
-        const fname = datasetName || S._datasetName || TERM.wlName || 'dataset.txt';
+        const fname = datasetName || S._datasetName || TERM.wlName || 'audit.txt';
         const isDatasetMode = !singlePw;
 
         // Helper: type a terminal line with a delay
@@ -4658,20 +4637,10 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
 
             let passwords = S._passwords || [];
             if (!passwords.length) {
-                try {
-                    const r = await fetch('/dataset.txt');
-                    if (r.ok) {
-                        const txt = await r.text();
-                        passwords = txt.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-                        S._passwords = passwords;
-                        S._datasetName = S._datasetName || 'dataset.txt';
-                    }
-                } catch { }
+                toast('No password dataset loaded. Please upload a dataset on the Dashboard or enter a target password.', 'info');
+                return;
             }
-            if (!passwords.length) {
-                passwords = ['password123', 'admin2026', 'welcome1', 'qwerty1234', 'Spring2026!', 'iloveyou99', 'shadow123', 'dragon2026', 'letmein123', 'master123'];
-            }
-            const dsName = S._datasetName || TERM.wlName || 'dataset.txt';
+            const dsName = S._datasetName || TERM.wlName || 'audit.txt';
             runTerminalAttack(passwords, null, dsName);
         }
 
@@ -5092,9 +5061,12 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
                     hWrap.style.display = 'block';
                     window.HIBP.renderResult(cached, hWrap);
                 }
-            } else if (hWrap && hWrap.style.display !== 'none') {
-                hWrap.innerHTML = '';
-                hWrap.style.display = 'none';
+            } else {
+                window._lastHibpResult = null;
+                if (hWrap && hWrap.style.display !== 'none') {
+                    hWrap.innerHTML = '';
+                    hWrap.style.display = 'none';
+                }
             }
 
             const breachVal = $('dossierBreachVal'), breachSub = $('dossierBreachSub');
@@ -5283,7 +5255,7 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
         let breachTileClass = 'tile-val-muted';
         const curPw = $('pwInput')?.value?.trim();
         const cachedHibp = (window.HIBP && typeof window.HIBP.getCached === 'function' && curPw) ? window.HIBP.getCached(curPw) : null;
-        const hibpRes = cachedHibp || window._lastHibpResult;
+        const hibpRes = cachedHibp;
 
         if (hibpRes && typeof hibpRes.breached === 'boolean') {
             if (hibpRes.breached || hibpRes.is_breached) {
@@ -5300,6 +5272,12 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
             if (hWrap && window.HIBP && typeof window.HIBP.renderResult === 'function') {
                 hWrap.style.display = 'block';
                 window.HIBP.renderResult(hibpRes, hWrap);
+            }
+        } else {
+            const hWrap = $('hibpResultWrap');
+            if (hWrap) {
+                hWrap.innerHTML = '';
+                hWrap.style.display = 'none';
             }
         }
 
@@ -5384,7 +5362,17 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
     }
 
     function resetDashboard() {
-        try { localStorage.removeItem('sp_active_analysis'); sessionStorage.removeItem('sp_active_analysis'); } catch { }
+        try {
+            const uid = S.user ? (S.user.id || 'me') : null;
+            if (uid) {
+                localStorage.removeItem(`sp_active_analysis_u${uid}`);
+                sessionStorage.removeItem(`sp_active_analysis_u${uid}`);
+                localStorage.removeItem(`sp_hibp_dataset_stats_u${uid}`);
+            }
+            localStorage.removeItem('sp_active_analysis');
+            sessionStorage.removeItem('sp_active_analysis');
+            localStorage.removeItem('sp_hibp_dataset_stats');
+        } catch { }
         S.results = null; S._passwords = []; S._datasetName = ''; clearFile();
         [$('resultsSection'), $('breachSection')].forEach(el => { if (el) el.style.display = 'none'; });
         const pas = $('preAuditState'); if (pas) pas.style.display = 'block';
@@ -5431,7 +5419,7 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
             const uname = S.user.username || S.user.email.split('@')[0];
             return (uname.charAt(0).toUpperCase() + uname.slice(1)) + ' Enterprise';
         }
-        return 'Hardik Enterprise';
+        return 'Acme Corporation';
     }
 
     function setupAIPolicy() {
@@ -5447,9 +5435,10 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
         const searchDomainBtn = document.getElementById('btnAipSearchDomain');
         const confirmDiscoveredBtn = document.getElementById('btnAipConfirmDiscovered');
 
+        const uid = S.user ? (S.user.id || 'me') : 'guest';
         // Populate saved company profile or defaults
         try {
-            const savedProfile = localStorage.getItem('securepass_company_info');
+            const savedProfile = localStorage.getItem(`securepass_company_info_u${uid}`);
             if (savedProfile) {
                 const p = JSON.parse(savedProfile);
                 if (orgInput && p.orgName) orgInput.value = p.orgName;
@@ -5472,7 +5461,9 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
                     cisoName: cisoInput ? cisoInput.value.trim() : '',
                     notes: notesInput ? notesInput.value.trim() : ''
                 };
-                localStorage.setItem('securepass_company_info', JSON.stringify(info));
+                if (S.user) {
+                    localStorage.setItem(`securepass_company_info_u${uid}`, JSON.stringify(info));
+                }
             } catch {}
         }
 
@@ -5506,7 +5497,7 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
 
         // Check if there is already a cached policy
         try {
-            const savedPolicy = localStorage.getItem('securepass_company_policy');
+            const savedPolicy = S.user ? localStorage.getItem(`securepass_company_policy_u${uid}`) : null;
             if (savedPolicy) {
                 _aipCurrentPolicy = JSON.parse(savedPolicy);
                 window._currentCompanyPolicy = _aipCurrentPolicy;
@@ -5531,28 +5522,26 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
     }
 
     function _aipSyncTelemetry() {
-        const results = S.results || DEFAULT_DATASET_ANALYSIS;
-        let total = 0, weak = 0, weakPct = '0.0', avgLen = '9.4', score = 72, breaches = 28;
-        let filename = 'dataset.txt';
+        const results = S.results;
+        let total = 0, weak = 0, weakPct = '0.0', avgLen = '—', score = 0, breaches = 0;
+        let filename = 'No active audit dataset';
 
         if (results) {
-            filename = results.filename || S._datasetName || 'dataset.txt';
+            filename = results.filename || S._datasetName || 'audit.txt';
             const ov = results.overview || {};
-            total = ov.total_passwords || results.total_passwords || 1666;
-            weak = ov.weak_passwords || 578;
-            weakPct = total > 0 ? ((weak / total) * 100).toFixed(1) : '34.7';
-            avgLen = ov.avg_length ? Number(ov.avg_length).toFixed(1) : (ov.average_length ? Number(ov.average_length).toFixed(1) : (results.avg_length || '9.4'));
-            score = results.risk_score != null ? Math.round(results.risk_score) : (ov.risk_score != null ? Math.round(ov.risk_score) : 72);
+            total = ov.total_passwords || results.total_passwords || 0;
+            weak = ov.weak_passwords || 0;
+            weakPct = total > 0 ? ((weak / total) * 100).toFixed(1) : '0.0';
+            avgLen = ov.avg_length ? Number(ov.avg_length).toFixed(1) : (ov.average_length ? Number(ov.average_length).toFixed(1) : (results.avg_length ? Number(results.avg_length).toFixed(1) : '—'));
+            score = results.risk_score != null ? Math.round(results.risk_score) : (ov.risk_score != null ? Math.round(ov.risk_score) : 0);
 
+            const uid = S.user ? S.user.id : null;
             let hibpStats = results.hibp;
-            if (!hibpStats) {
+            if (!hibpStats && uid) {
                 try {
-                    const raw = localStorage.getItem('sp_hibp_dataset_stats');
+                    const raw = localStorage.getItem(`sp_hibp_dataset_stats_u${uid}`);
                     if (raw) hibpStats = JSON.parse(raw);
                 } catch (e) {}
-            }
-            if (!hibpStats && DEFAULT_DATASET_ANALYSIS.hibp) {
-                hibpStats = DEFAULT_DATASET_ANALYSIS.hibp;
             }
 
             const candidateBreaches = (
@@ -5564,29 +5553,27 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
                 (results.breach_matches ? results.breach_matches.length : null)
             );
 
-            if (candidateBreaches != null && candidateBreaches > 0) {
+            if (candidateBreaches != null) {
                 breaches = candidateBreaches;
             } else if (hibpStats && (hibpStats.estimated_breached || hibpStats.total_breached)) {
                 breaches = hibpStats.estimated_breached || hibpStats.total_breached;
-            } else if (DEFAULT_DATASET_ANALYSIS.hibp && DEFAULT_DATASET_ANALYSIS.hibp.total_breached) {
-                breaches = DEFAULT_DATASET_ANALYSIS.hibp.total_breached;
             } else if (total > 0) {
-                breaches = Math.max(1, Math.round(total * 0.017));
+                breaches = Math.max(0, Math.round(total * 0.017));
             } else {
-                breaches = 28;
+                breaches = 0;
             }
         }
 
-        setText('aipStatTotal', total ? total.toLocaleString() : '1,666');
-        setText('aipStatWeak', weak ? weak.toLocaleString() : '578');
+        setText('aipStatTotal', total ? total.toLocaleString() : '0');
+        setText('aipStatWeak', weak ? weak.toLocaleString() : '0');
         setText('aipStatWeakPct', `${weakPct}% compromised`);
-        setText('aipStatLength', `${avgLen} chars`);
-        setText('aipStatScore', `Risk Score: ${score}/100`);
+        setText('aipStatLength', avgLen === '—' ? '—' : `${avgLen} chars`);
+        setText('aipStatScore', score ? `Risk Score: ${score}/100` : 'Risk Score: —');
         setText('aipStatBreaches', `${breaches.toLocaleString()} Breached`);
 
         const nameBadge = document.getElementById('aipDatasetNameText');
         if (nameBadge) {
-            nameBadge.textContent = `${filename} (${total ? total.toLocaleString() + ' Hashes' : 'Active'})`;
+            nameBadge.textContent = total ? `${filename} (${total.toLocaleString()} Hashes)` : 'No active audit dataset';
         }
     }
 
@@ -5623,7 +5610,39 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
 
             const data = await res.json();
 
-            // Case 1: Company not found and domain is required
+            // Case 1: Fake, unregistered, or unresolvable domain
+            if (data.is_fake || data.dns_resolved === false || (!data.found && data.company_info?.is_fake)) {
+                if (alertEl) {
+                    alertEl.style.display = 'block';
+                    alertEl.style.background = '#fef2f2';
+                    alertEl.style.border = '1.5px solid #fecaca';
+                    alertEl.style.color = '#991b1b';
+                    alertEl.innerHTML = `
+                        <div style="display:flex; align-items:flex-start; gap:10px;">
+                            <i data-lucide="shield-alert" style="width:18px;height:18px;color:#dc2626;flex-shrink:0;margin-top:2px;"></i>
+                            <div>
+                                <strong style="font-weight:700; color:#b91c1c;">Unresolved or Inactive Domain Detected</strong>
+                                <div style="margin-top:3px; font-size:12px; color:#7f1d1d; line-height:1.45;">
+                                    ${esc(data.message || `Domain "${domain}" does not exist in public DNS records. Please verify spelling or provide an active registered domain.`)}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    if (window.lucide) lucide.createIcons();
+                }
+                if (domainInput) {
+                    domainInput.focus();
+                    domainInput.style.borderColor = '#ef4444';
+                    domainInput.style.boxShadow = '0 0 0 3px rgba(239, 68, 68, 0.18)';
+                    setTimeout(() => { domainInput.style.boxShadow = ''; }, 3000);
+                }
+                if (discCard) discCard.style.display = 'none';
+                _aipDiscoveredInfo = null;
+                toast(data.message || `Domain "${domain}" is not an active, registered domain.`, 'error');
+                return false;
+            }
+
+            // Case 2: Company not found and domain is required
             if (data.requires_domain) {
                 if (alertEl) {
                     alertEl.style.display = 'block';
@@ -5648,17 +5667,18 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
                     setTimeout(() => { domainInput.style.boxShadow = ''; }, 2500);
                 }
                 if (discCard) discCard.style.display = 'none';
+                _aipDiscoveredInfo = null;
                 return false;
             }
 
-            // Case 2: Company or Domain found
+            // Case 3: Verified Active Domain Found
             const info = data.company_info || {};
             _aipDiscoveredInfo = info;
 
             if (domainInput && info.domain && !domainInput.value) {
                 domainInput.value = info.domain;
             }
-            if (orgInput && info.name && (!orgInput.value || orgInput.value === 'Hardik Enterprise')) {
+            if (orgInput && info.name && (!orgInput.value || orgInput.value === 'Acme Corporation')) {
                 orgInput.value = info.name;
             }
 
@@ -5677,7 +5697,7 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
             if (discCard) {
                 discCard.style.display = 'block';
                 if (discTitle) discTitle.textContent = `Discovered Threat Intelligence · ${info.name || domain || 'Target Entity'}`;
-                if (discDns) discDns.textContent = info.dns_resolved ? `DNS Active (${info.resolved_ip || 'Live'})` : 'Domain Tracked';
+                if (discDns) discDns.textContent = info.dns_resolved ? `DNS Active (${info.resolved_ip || 'Live'})` : 'Domain Active';
                 if (discSummary) discSummary.textContent = info.summary || `Verified operational web profile for ${info.name || domain}.`;
                 if (discVectors) {
                     const vectors = info.attack_surface || ['SSO Credential Stuffing', 'Targeted Phishing', 'API Abuse'];
@@ -5704,7 +5724,7 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
             }
 
             if (isManual) {
-                toast(`Found company intelligence for ${info.name || domain}!`, 'success');
+                toast(`Verified domain intelligence for ${info.name || domain}!`, 'success');
             }
             return true;
 
@@ -5747,16 +5767,19 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
         const cisoName = (cisoInput && cisoInput.value.trim()) || 'Chief Information Security Officer (CISO)';
         const securityFocus = (notesInput && notesInput.value.trim()) || '';
 
-        // If domain is empty and company name is generic, prompt for domain first
-        if (!companyDomain && (!companyName || companyName.toLowerCase().includes('unknown') || companyName.toLowerCase().includes('test'))) {
+        // Verify corporate domain is active and not fake before formulating policy
+        if (companyDomain) {
+            if (!_aipDiscoveredInfo || _aipDiscoveredInfo.domain !== companyDomain || !_aipDiscoveredInfo.dns_resolved || _aipDiscoveredInfo.is_fake) {
+                const ok = await _aipLookupDomain(false);
+                if (!ok) {
+                    toast('Please enter a verified, active corporate domain before generating policy.', 'warning');
+                    return;
+                }
+            }
+        } else {
             const ok = await _aipLookupDomain(false);
-            if (!ok) return; // Wait for user to provide domain
-            companyDomain = (domainInput && domainInput.value.trim()) || 'company.com';
-        }
-
-        if (!companyDomain) {
-            companyDomain = companyName.toLowerCase().replace(/\s+/g, '') + '.com';
-            if (domainInput) domainInput.value = companyDomain;
+            if (!ok) return;
+            companyDomain = (domainInput && domainInput.value.trim()) || 'acme.com';
         }
 
         const generateBtn = document.getElementById('btnAipGeneratePolicy');
@@ -5775,16 +5798,13 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
             const headers = { 'Content-Type': 'application/json' };
             if (csrf) headers['X-CSRF-TOKEN'] = csrf;
 
-            const inlineResults = Object.assign({}, S.results || DEFAULT_DATASET_ANALYSIS);
-            if (!inlineResults.hibp) {
+            const inlineResults = S.results ? Object.assign({}, S.results) : {};
+            const uid = S.user ? (S.user.id || 'me') : 'guest';
+            if (inlineResults && !inlineResults.hibp && S.user) {
                 try {
-                    const raw = localStorage.getItem('sp_hibp_dataset_stats');
+                    const raw = localStorage.getItem(`sp_hibp_dataset_stats_u${uid}`);
                     if (raw) inlineResults.hibp = JSON.parse(raw);
                 } catch (e) {}
-            }
-            if (!inlineResults.hibp) inlineResults.hibp = DEFAULT_DATASET_ANALYSIS.hibp;
-            if (inlineResults.overview && !inlineResults.overview.breached_count) {
-                inlineResults.overview.breached_count = inlineResults.hibp?.total_breached || inlineResults.hibp?.estimated_breached || 28;
             }
 
             const payload = {
@@ -5875,15 +5895,17 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
 
             // Persist policy and governance config
             try {
-                localStorage.setItem('securepass_company_policy', JSON.stringify(formattedPolicy));
-                localStorage.setItem('securepass_aip_config', JSON.stringify({
-                    orgName: companyName,
-                    cisoName: cisoName,
-                    minLen: formattedPolicy.technical_controls.min_length_standard,
-                    timeout: formattedPolicy.technical_controls.inactivity_lockout_mins,
-                    domain: companyDomain,
-                    industry: companyIndustry
-                }));
+                if (S.user) {
+                    localStorage.setItem(`securepass_company_policy_u${uid}`, JSON.stringify(formattedPolicy));
+                    localStorage.setItem(`securepass_aip_config_u${uid}`, JSON.stringify({
+                        orgName: companyName,
+                        cisoName: cisoName,
+                        minLen: formattedPolicy.technical_controls.min_length_standard,
+                        timeout: formattedPolicy.technical_controls.inactivity_lockout_mins,
+                        domain: companyDomain,
+                        industry: companyIndustry
+                    }));
+                }
             } catch {}
 
             window._aipCustomConfig = {

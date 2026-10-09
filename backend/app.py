@@ -917,9 +917,21 @@ _MAX_PDF_CACHE_ENTRIES = 30
 def download_report():
     """Generate and stream a PDF security report with sub-second caching."""
     try:
+        user = get_current_user()
         data = request.get_json(silent=True)
         if not data:
             return jsonify({'error': 'No data provided.'}), 400
+
+        analysis_id = data.get('analysis_id')
+        if analysis_id:
+            try:
+                obj = db.session.get(Analysis, int(analysis_id))
+                if not obj:
+                    return jsonify({'error': 'Analysis report not found.'}), 404
+                if obj.user_id != user.id:
+                    return jsonify({'error': 'Access denied: You do not own this analysis report.'}), 403
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid analysis_id.'}), 400
 
         report_type = str(data.get('report_type', 'executive')).lower()
         chart_paths = data.get('charts', {})
@@ -934,7 +946,7 @@ def download_report():
 
         # ── Fast-Path: In-memory report cache check (< 5ms response) ────────── #
         import hashlib
-        cache_key_raw = f"{pdf_data.get('total_passwords')}_{pdf_data.get('risk_score')}_{pdf_data.get('org_name')}_{pdf_data.get('ciso_name')}_{pdf_data.get('min_length_req')}_{pdf_data.get('inactivity_timeout')}_{pdf_data.get('policy_preset')}_{report_type}"
+        cache_key_raw = f"{user.id}_{pdf_data.get('total_passwords')}_{pdf_data.get('risk_score')}_{pdf_data.get('org_name')}_{pdf_data.get('ciso_name')}_{pdf_data.get('min_length_req')}_{pdf_data.get('inactivity_timeout')}_{pdf_data.get('policy_preset')}_{report_type}"
         cache_key = hashlib.md5(cache_key_raw.encode('utf-8')).hexdigest()
 
         now = time.time()
@@ -1009,12 +1021,18 @@ def download_compliance_evidence_pack():
         risk_score = 0.0
 
         if analysis_id:
-            obj = db.session.get(Analysis, int(analysis_id))
-            if obj and obj.user_id == user.id:
+            try:
+                obj = db.session.get(Analysis, int(analysis_id))
+                if not obj:
+                    return jsonify({'error': 'Analysis report not found.'}), 404
+                if obj.user_id != user.id:
+                    return jsonify({'error': 'Access denied: You do not own this analysis report.'}), 403
                 analysis_data = obj.analysis_data or {}
                 filename = obj.filename
                 risk_score = obj.risk_score or 0.0
                 total = obj.total_passwords or 0
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid analysis_id.'}), 400
 
         if not analysis_data and user:
             obj = (
@@ -1045,8 +1063,8 @@ def download_compliance_evidence_pack():
 
         if user:
             try:
-                u_settings = UserSettings.query.filter_by(user_id=user.id).all()
-                s_map = {s.key: s.value for s in u_settings}
+                from settings_backend import UserSettings
+                s_map = UserSettings.get(user)
                 if not org_name and 'policy_org_name' in s_map:
                     org_name = s_map['policy_org_name']
                 if not ciso_name and 'policy_ciso_name' in s_map:
@@ -1939,8 +1957,8 @@ def ai_policy():
             return str(val)[:max_len].strip()
 
         user_name         = _clean(data.get('user_name'))
-        org_name          = _clean(data.get('company_name') or data.get('org_name') or 'Hardik Enterprise')
-        domain            = _clean(data.get('company_domain') or data.get('domain') or 'hardik.enterprise')
+        org_name          = _clean(data.get('company_name') or data.get('org_name') or 'Acme Corporation')
+        domain            = _clean(data.get('company_domain') or data.get('domain') or 'acme.com')
         industry          = _clean(data.get('company_industry') or data.get('industry') or 'Technology / Cloud Services')
         notes             = _clean(data.get('security_focus') or data.get('notes') or '')
         city              = _clean(data.get('city'))
@@ -1955,10 +1973,13 @@ def ai_policy():
         if analysis_id:
             try:
                 analysis_obj = db.session.get(Analysis, int(analysis_id))
-                if analysis_obj and analysis_obj.user_id == user.id:
-                    analysis_data = analysis_obj.analysis_data or {}
-            except Exception:
-                app.logger.warning('ai-policy: could not load analysis_id=%s', analysis_id)
+                if not analysis_obj:
+                    return jsonify({'error': 'Analysis record not found.'}), 404
+                if analysis_obj.user_id != user.id:
+                    return jsonify({'error': 'Access denied: You do not own this analysis report.'}), 403
+                analysis_data = analysis_obj.analysis_data or {}
+            except (ValueError, TypeError):
+                return jsonify({'error': 'Invalid analysis_id format.'}), 400
 
         if not analysis_obj:
             # Fallback: load most recent analysis for this user
