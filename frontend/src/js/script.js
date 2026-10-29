@@ -558,32 +558,97 @@
 
     function setupSidebar() {
         // Wire sidebar pin/collapse toggle button
-        const sidebar = $('mainSidebar');
-        const toggleBtn = $('sidebarToggleBtn');
-        if (sidebar && toggleBtn) {
-            const savedPin = localStorage.getItem('securepass_sidebar_pinned');
-            const isPinned = savedPin === null ? (window.innerWidth >= 1024) : savedPin === 'true';
-            if (isPinned) {
-                sidebar.classList.add('pinned');
-                document.body.classList.add('sidebar-pinned');
+        const sidebar = document.getElementById('mainSidebar');
+        const toggleBtn = document.getElementById('sidebarToggleBtn');
+        const navToggleBtn = document.getElementById('navSidebarToggleBtn');
+        const logoWrapper = document.getElementById('sidebarLogoWrapper');
+        const backdrop = document.getElementById('sidebarBackdrop');
+
+        // Check stored preference (default: expanded on desktop, collapsed on mobile)
+        const savedState = localStorage.getItem('securepass_sidebar_state');
+        const isDesktop = window.innerWidth >= 1024;
+        let isExpanded = savedState === null ? isDesktop : savedState === 'expanded';
+
+        function applySidebarState(expanded) {
+            isExpanded = expanded;
+            localStorage.setItem('securepass_sidebar_state', expanded ? 'expanded' : 'collapsed');
+
+            if (expanded) {
+                document.body.classList.remove('sidebar-collapsed');
+                document.body.classList.add('sidebar-expanded', 'sidebar-pinned');
+                if (sidebar) {
+                    sidebar.classList.add('pinned', 'expanded');
+                    sidebar.classList.remove('collapsed');
+                }
+                if (backdrop) backdrop.classList.remove('active');
+            } else {
+                document.body.classList.add('sidebar-collapsed');
+                document.body.classList.remove('sidebar-expanded', 'sidebar-pinned');
+                if (sidebar) {
+                    sidebar.classList.remove('pinned', 'expanded');
+                    sidebar.classList.add('collapsed');
+                }
+                if (backdrop) backdrop.classList.remove('active');
+            }
+
+            // Synchronize icons on sidebar toggle button
+            if (toggleBtn) {
                 const closeIcon = toggleBtn.querySelector('.pin-icon-close');
                 const openIcon = toggleBtn.querySelector('.pin-icon-open');
                 if (closeIcon && openIcon) {
-                    closeIcon.style.display = 'none';
-                    openIcon.style.display = 'block';
+                    closeIcon.style.display = expanded ? 'block' : 'none';
+                    openIcon.style.display = expanded ? 'none' : 'block';
                 }
+                toggleBtn.setAttribute('title', expanded ? 'Collapse Sidebar' : 'Expand Sidebar');
+                toggleBtn.setAttribute('aria-label', expanded ? 'Collapse Sidebar' : 'Expand Sidebar');
             }
+
+            if (navToggleBtn) {
+                navToggleBtn.setAttribute('title', expanded ? 'Collapse Sidebar' : 'Expand Sidebar');
+            }
+
+            if (window.lucide) lucide.createIcons();
+        }
+
+        // Apply initial state
+        applySidebarState(isExpanded);
+
+        // Sidebar Toggle button click (inside sidebar header)
+        if (toggleBtn) {
             toggleBtn.addEventListener('click', e => {
                 e.stopPropagation();
-                const nowPinned = sidebar.classList.toggle('pinned');
-                document.body.classList.toggle('sidebar-pinned', nowPinned);
-                localStorage.setItem('securepass_sidebar_pinned', String(nowPinned));
-                const closeIcon = toggleBtn.querySelector('.pin-icon-close');
-                const openIcon = toggleBtn.querySelector('.pin-icon-open');
-                if (closeIcon && openIcon) {
-                    closeIcon.style.display = nowPinned ? 'none' : 'block';
-                    openIcon.style.display = nowPinned ? 'block' : 'none';
+                applySidebarState(!isExpanded);
+            });
+        }
+
+        // Navbar Toggle button click (in top navigation bar)
+        if (navToggleBtn) {
+            navToggleBtn.addEventListener('click', e => {
+                e.stopPropagation();
+                if (window.innerWidth < 1024) {
+                    const isMobileOpen = sidebar && sidebar.classList.toggle('mobile-open');
+                    if (backdrop) backdrop.classList.toggle('active', !!isMobileOpen);
+                } else {
+                    applySidebarState(!isExpanded);
                 }
+            });
+        }
+
+        // Clicking logo in collapsed mode expands the sidebar
+        if (logoWrapper) {
+            logoWrapper.addEventListener('click', e => {
+                if (!isExpanded) {
+                    e.stopPropagation();
+                    applySidebarState(true);
+                }
+            });
+        }
+
+        // Backdrop click closes mobile drawer
+        if (backdrop) {
+            backdrop.addEventListener('click', () => {
+                if (sidebar) sidebar.classList.remove('mobile-open');
+                backdrop.classList.remove('active');
             });
         }
 
@@ -597,6 +662,10 @@
                     return;
                 }
                 showPage(page);
+                if (window.innerWidth < 1024) {
+                    if (sidebar) sidebar.classList.remove('mobile-open');
+                    if (backdrop) backdrop.classList.remove('active');
+                }
                 // FIX: call page-specific init here, in the click handler
                 if (page === 'compliance') initCompliancePage();
                 if (page === 'ai-policy') initAIPolicyPage();

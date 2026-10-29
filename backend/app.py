@@ -847,7 +847,7 @@ def analyze():
             response_data['daily_remaining'] = max(0, _GUEST_DAILY_LIMIT - new_usage)
             response_data['daily_used'] = new_usage
             response_data['daily_limit'] = _GUEST_DAILY_LIMIT
-            response_data['guest_notice'] = f'Analyzed {len(passwords)} passwords. Guest limit is {_GUEST_DAILY_LIMIT} passwords/day. Sign in for up to 25MB uploads.'
+            response_data['guest_notice'] = f"Analyzed {overview['total_passwords']} passwords. Guest limit is {_GUEST_DAILY_LIMIT} passwords/day. Sign in for up to 25MB uploads."
 
         return jsonify(response_data), 200
 

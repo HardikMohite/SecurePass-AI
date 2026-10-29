@@ -38,19 +38,20 @@
     </style>
 </head>
 
-<body class="light-mode sidebar-pinned">
+<body class="light-mode sidebar-expanded">
     <div class="grid-bg"></div>
+    <div id="sidebarBackdrop" class="sidebar-backdrop"></div>
 
-    <aside class="sidebar pinned" id="mainSidebar">
+    <aside class="sidebar expanded" id="mainSidebar">
         <div class="sidebar-logo">
-            <div class="logo-wrapper">
+            <div class="logo-wrapper" id="sidebarLogoWrapper" title="Toggle Sidebar">
                 <img src="/securepass_logo.svg" alt="SecurePass AI Logo" class="sidebar-logo-img">
             </div>
             <div class="sidebar-brand-group">
                 <span class="sidebar-brand">SecurePass</span>
                 <span class="sidebar-brand-badge">AI</span>
             </div>
-            <button id="sidebarToggleBtn" class="sidebar-toggle-btn" type="button" title="Pin / Unpin Sidebar">
+            <button id="sidebarToggleBtn" class="sidebar-toggle-btn" type="button" title="Collapse Sidebar" aria-label="Collapse Sidebar">
                 <i data-lucide="panel-left-close" class="pin-icon-close" style="width:16px;height:16px;"></i>
                 <i data-lucide="panel-left-open" class="pin-icon-open" style="width:16px;height:16px;display:none;"></i>
             </button>
@@ -103,12 +104,17 @@
     <div class="main-wrapper">
         <nav id="navbar">
             <div class="container">
-                <a href="/" class="logo">
-                    <div class="nav-logo-badge">
-                        <img src="/securepass_logo.svg" alt="SecurePass AI Logo" class="nav-logo-img">
-                    </div>
-                    <span>SecurePass AI</span>
-                </a>
+                <div class="nav-left-group">
+                    <button id="navSidebarToggleBtn" class="nav-sidebar-toggle-btn" type="button" title="Toggle Sidebar" aria-label="Toggle Sidebar">
+                        <i data-lucide="panel-left" class="nav-toggle-icon" style="width:18px;height:18px;"></i>
+                    </button>
+                    <a href="/" class="logo">
+                        <div class="nav-logo-badge">
+                            <img src="/securepass_logo.svg" alt="SecurePass AI Logo" class="nav-logo-img">
+                        </div>
+                        <span>SecurePass AI</span>
+                    </a>
+                </div>
 
                 <div class="nav-actions">
                     <div class="nav-status-pill">
