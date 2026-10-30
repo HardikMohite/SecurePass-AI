@@ -36,6 +36,7 @@ import json
 import logging
 import os
 import random
+import re
 import tempfile
 import time
 from io import BytesIO
@@ -2190,6 +2191,7 @@ def ai_policy():
 @app.route('/api/ai-policy/download-pdf', methods=['POST', 'GET'])
 @jwt_required(optional=True)
 def download_ai_policy_pdf():
+    import re
     """
     Generate and stream an executive, bespoke AI Enterprise Password Policy PDF.
     Accepts JSON payload with policy details, or query parameters.

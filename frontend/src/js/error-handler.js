@@ -72,6 +72,10 @@
 
             // 2. Handle 500+ Internal Server / Cluster Errors
             if (response.status >= 500 && response.status <= 599) {
+                if (url.includes('/download')) {
+                    // Do not navigate page for file downloads; caller handles fallback
+                    return response;
+                }
                 console.error(`[SecurePass Sentinel] ${response.status} Server Error encountered at: ${url}`);
                 recordError(response.status, `Server Exception (${response.statusText || 'Internal Server Error'})`, url);
                 window.location.href = '/500';
@@ -89,7 +93,7 @@
         } catch (error) {
             // Network failure / Offline / Server crashed
             const isAborted = args[1]?.signal?.aborted;
-            if (!isAborted && url.startsWith('/api/')) {
+            if (!isAborted && url.startsWith('/api/') && !url.includes('/download')) {
                 console.error(`[SecurePass Sentinel] Fatal Network Failure connecting to ${url}:`, error);
                 recordError(500, 'Network Disconnect: Inspection Cluster Unreachable', url);
                 window.location.href = '/500';

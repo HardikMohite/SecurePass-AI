@@ -6415,11 +6415,11 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
                 </div>
             </div>
 
-            <!-- Export & Reports Integration Bar -->
+            <!-- Dedicated AI Policy Export Bar -->
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; padding:16px 20px; background:#f1f5f9; border-radius:10px;">
                 <div style="font-size:12.5px; color:#475569;">
-                    <i data-lucide="check" style="width:14px;height:14px;color:#16a34a;display:inline-block;vertical-align:middle;margin-right:4px;"></i>
-                    Policy active and bound to your target organization. Export or generate a certified executive PDF report.
+                    <i data-lucide="check-circle" style="width:15px;height:15px;color:#16a34a;display:inline-block;vertical-align:middle;margin-right:6px;"></i>
+                    AI Enterprise Password Policy active and formulated for <strong>${esc(policy.company_name)}</strong>. Export or download your bespoke policy:
                 </div>
                 <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                     <button id="btnAipDownloadPdf" type="button" class="btn btn-primary btn-sm" style="display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
@@ -6437,10 +6437,6 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
                     <button id="btnAipDownloadTxt" type="button" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
                         <i data-lucide="file-text" style="width:14px;height:14px;"></i>
                         <span>Download Text (.txt)</span>
-                    </button>
-                    <button id="btnAipGoReports" type="button" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
-                        <i data-lucide="file-check-2" style="width:14px;height:14px;"></i>
-                        <span>Audit Reports Hub</span>
                     </button>
                 </div>
             </div>
@@ -6491,12 +6487,7 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
             });
         }
 
-        const goReportsBtn = document.getElementById('btnAipGoReports');
-        if (goReportsBtn) {
-            goReportsBtn.addEventListener('click', () => {
-                window.showPage('reports');
-            });
-        }
+
 
         if (window.lucide) lucide.createIcons();
     }
