@@ -24,6 +24,9 @@ scratch/
 frontend/static/reports/output/
 *.pdf
 *.png
+!frontend/public/*.png
+!frontend/public/*.ico
+!frontend/src/assets/*.png
 
 # IDE
 .vscode/
