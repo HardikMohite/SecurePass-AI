@@ -1959,9 +1959,9 @@ def ai_policy():
         domain            = _clean(data.get('company_domain') or data.get('domain'))
         industry          = _clean(data.get('company_industry') or data.get('industry') or 'Technology & Cloud SaaS')
 
-        if not org_name or not domain:
+        if not org_name or not domain or str(org_name).lower() in ('acme corporation', 'acme corp', '') or str(domain).lower() in ('acme.com', ''):
             return jsonify({
-                'error': 'Please provide your Company / Brand Name and Official Website Domain to formulate a tailored AI policy.'
+                'error': 'Please provide your real Company / Brand Name and Official Website Domain to formulate a tailored AI policy.'
             }), 400
         notes             = _clean(data.get('security_focus') or data.get('notes') or '')
         city              = _clean(data.get('city'))
@@ -2203,9 +2203,9 @@ def download_ai_policy_pdf():
         org_name = policy_data.get('company_name') or request.args.get('company_name')
         domain = policy_data.get('company_domain') or request.args.get('company_domain')
 
-        if not org_name:
+        if not org_name or not domain or str(org_name).lower() in ('acme corporation', 'acme corp', '') or str(domain).lower() in ('acme.com', ''):
             return jsonify({
-                'error': 'Company name is required to download policy PDF. Please enter your firm details first.'
+                'error': 'Real company name and website domain are required to download policy PDF. Please enter your firm details first.'
             }), 400
 
         pdf_bytes = generate_ai_policy_pdf(policy_data)

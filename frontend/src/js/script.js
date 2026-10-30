@@ -5523,15 +5523,27 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
         const confirmDiscoveredBtn = document.getElementById('btnAipConfirmDiscovered');
 
         const uid = S.user ? (S.user.id || 'me') : 'guest';
-        // Populate saved company profile or defaults
+        // Populate saved company profile or clear stale Acme defaults
         try {
             const savedProfile = localStorage.getItem(`securepass_company_info_u${uid}`);
             if (savedProfile) {
                 const p = JSON.parse(savedProfile);
-                if (orgInput && p.orgName) orgInput.value = p.orgName;
-                if (domainInput && p.domain) domainInput.value = p.domain;
+                if (p.orgName && p.orgName.toLowerCase() !== 'acme corporation' && p.orgName.toLowerCase() !== 'acme corp') {
+                    if (orgInput) orgInput.value = p.orgName;
+                } else if (orgInput) {
+                    orgInput.value = '';
+                }
+
+                if (p.domain && p.domain.toLowerCase() !== 'acme.com') {
+                    if (domainInput) domainInput.value = p.domain;
+                } else if (domainInput) {
+                    domainInput.value = '';
+                }
+
                 if (industrySelect && p.industry) industrySelect.value = p.industry;
-                if (cisoInput && p.cisoName) cisoInput.value = p.cisoName;
+                if (cisoInput && p.cisoName && !p.cisoName.toLowerCase().includes('acme')) {
+                    cisoInput.value = p.cisoName;
+                }
                 if (notesInput && p.notes) notesInput.value = p.notes;
             }
         } catch {}
@@ -5588,14 +5600,43 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
             };
         }
 
-        // Check if there is already a cached policy
+        // Invalidate stale or generic Acme cached policy
         try {
             const savedPolicy = S.user ? localStorage.getItem(`securepass_company_policy_u${uid}`) : null;
             if (savedPolicy) {
-                _aipCurrentPolicy = JSON.parse(savedPolicy);
-                window._currentCompanyPolicy = _aipCurrentPolicy;
+                const parsed = JSON.parse(savedPolicy);
+                if (parsed.company_name && parsed.company_name.toLowerCase() !== 'acme corporation' && parsed.company_name.toLowerCase() !== 'acme corp') {
+                    _aipCurrentPolicy = parsed;
+                    window._currentCompanyPolicy = parsed;
+                } else {
+                    _aipCurrentPolicy = null;
+                    window._currentCompanyPolicy = null;
+                    localStorage.removeItem(`securepass_company_policy_u${uid}`);
+                }
             }
         } catch {}
+
+        // Invalidate policy if company inputs are changed
+        if (orgInput) {
+            orgInput.addEventListener('input', () => {
+                const val = orgInput.value.trim();
+                if (_aipCurrentPolicy && _aipCurrentPolicy.company_name !== val) {
+                    _aipCurrentPolicy = null;
+                    window._currentCompanyPolicy = null;
+                    _aipShowAwaitingDetailsState();
+                }
+            });
+        }
+        if (domainInput) {
+            domainInput.addEventListener('input', () => {
+                const val = domainInput.value.trim();
+                if (_aipCurrentPolicy && _aipCurrentPolicy.company_domain !== val) {
+                    _aipCurrentPolicy = null;
+                    window._currentCompanyPolicy = null;
+                    _aipShowAwaitingDetailsState();
+                }
+            });
+        }
 
         _aipSyncTelemetry();
     }
@@ -5604,10 +5645,27 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
         setupAIPolicy();
         _aipSyncTelemetry();
 
-        if (_aipCurrentPolicy) {
+        const orgInput = document.getElementById('aipInputOrgName');
+        const domainInput = document.getElementById('aipInputDomain');
+        const curOrg = (orgInput && orgInput.value.trim()) || '';
+        const curDomain = (domainInput && domainInput.value.trim()) || '';
+
+        // Only display policy if user has real non-Acme company details entered
+        if (
+            curOrg &&
+            curDomain &&
+            curOrg.toLowerCase() !== 'acme corporation' &&
+            curOrg.toLowerCase() !== 'acme corp' &&
+            curDomain.toLowerCase() !== 'acme.com' &&
+            _aipCurrentPolicy &&
+            _aipCurrentPolicy.company_name &&
+            _aipCurrentPolicy.company_name.toLowerCase() !== 'acme corporation'
+        ) {
             _aipRenderResult(_aipCurrentPolicy);
         } else {
-            // Awaiting user's real firm details — do not auto-generate fake Acme policy
+            // Awaiting user's real firm details
+            _aipCurrentPolicy = null;
+            window._currentCompanyPolicy = null;
             _aipShowAwaitingDetailsState();
         }
 
@@ -5617,6 +5675,13 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
     function _aipShowAwaitingDetailsState() {
         const loadingState = document.getElementById('aipLoadingState');
         const resultSection = document.getElementById('aipResultSection');
+        const topPdfBtn = document.getElementById('btnAipDownloadPdfTop');
+        if (topPdfBtn) {
+            topPdfBtn.disabled = true;
+            topPdfBtn.style.opacity = '0.5';
+            topPdfBtn.style.cursor = 'not-allowed';
+            topPdfBtn.title = 'Enter firm details above to generate and download policy';
+        }
         if (loadingState) loadingState.style.display = 'none';
         if (resultSection) {
             resultSection.style.display = 'block';
@@ -6143,6 +6208,14 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
         const container = document.getElementById('aipResultSection');
         if (!container || !policy) return;
 
+        const topPdfBtn = document.getElementById('btnAipDownloadPdfTop');
+        if (topPdfBtn) {
+            topPdfBtn.disabled = false;
+            topPdfBtn.style.opacity = '1';
+            topPdfBtn.style.cursor = 'pointer';
+            topPdfBtn.title = 'Download Bespoke AI Policy PDF';
+        }
+
         const cp = policy.company_profile || {};
         const companyName = policy.company_name || cp.name || (document.getElementById('aipInputOrgName')?.value.trim()) || 'Target Organization';
         const companyDomain = policy.company_domain || cp.domain || (document.getElementById('aipInputDomain')?.value.trim()) || 'company.com';
@@ -6609,10 +6682,18 @@ Organization: ${policy.company_name}
     }
 
     async function _aipDownloadPdf() {
-        if (!_aipCurrentPolicy) {
-            toast('Please enter your firm details and formulate your AI policy first.', 'warning');
-            const orgInput = document.getElementById('aipInputOrgName');
-            if (orgInput) orgInput.focus();
+        const orgInput = document.getElementById('aipInputOrgName');
+        const domainInput = document.getElementById('aipInputDomain');
+        const curOrg = (orgInput && orgInput.value.trim()) || '';
+        const curDomain = (domainInput && domainInput.value.trim()) || '';
+
+        if (!curOrg || !curDomain || curOrg.toLowerCase() === 'acme corporation' || curDomain.toLowerCase() === 'acme.com' || !_aipCurrentPolicy) {
+            toast('Please enter your real company name and website domain first, then click "Analyze Company & Formulate AI Password Policy".', 'warning');
+            if (orgInput) {
+                orgInput.focus();
+                orgInput.style.borderColor = '#ef4444';
+                setTimeout(() => { orgInput.style.borderColor = ''; }, 3000);
+            }
             return;
         }
 

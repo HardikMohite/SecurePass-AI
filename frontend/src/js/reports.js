@@ -105,7 +105,7 @@
 
     /* ─── governance config & card render ────────────────────────── */
     function getGovernanceConfig() {
-        let defaultOrg = 'Acme Enterprise';
+        let defaultOrg = 'Corporate Enterprise';
         const currentUser = (window.S && window.S.user) || null;
         if (currentUser) {
             const uname = currentUser.username || (currentUser.email ? currentUser.email.split('@')[0] : '');
@@ -114,7 +114,7 @@
 
         let cfg = {
             orgName: defaultOrg,
-            domain: 'acme.com',
+            domain: 'enterprise.internal',
             industry: 'Technology & Cloud SaaS',
             cisoName: 'Chief Information Security Officer (CISO)',
             minLen: 14,
@@ -130,20 +130,22 @@
                 const savedCompanyPolicy = localStorage.getItem(`securepass_company_policy_u${uid}`);
                 if (savedCompanyPolicy) {
                     const cp = JSON.parse(savedCompanyPolicy);
-                    cfg.orgName = cp.company_name || cfg.orgName;
-                    cfg.domain = cp.company_domain || cfg.domain;
-                    cfg.industry = cp.company_industry || cfg.industry;
-                    cfg.cisoName = cp.ciso_name || cfg.cisoName;
-                    cfg.minLen = cp.technical_controls?.min_length_standard || cfg.minLen;
-                    cfg.timeout = cp.technical_controls?.inactivity_lockout_mins || cfg.timeout;
-                    cfg.companyAiPolicy = cp;
+                    if (cp.company_name && !cp.company_name.toLowerCase().includes('acme')) {
+                        cfg.orgName = cp.company_name;
+                        cfg.domain = cp.company_domain || cfg.domain;
+                        cfg.industry = cp.company_industry || cfg.industry;
+                        cfg.cisoName = cp.ciso_name || cfg.cisoName;
+                        cfg.minLen = cp.technical_controls?.min_length_standard || cfg.minLen;
+                        cfg.timeout = cp.technical_controls?.inactivity_lockout_mins || cfg.timeout;
+                        cfg.companyAiPolicy = cp;
+                    }
                 }
             } catch {}
         }
 
-        if (window._currentCompanyPolicy) {
+        if (window._currentCompanyPolicy && window._currentCompanyPolicy.company_name && !window._currentCompanyPolicy.company_name.toLowerCase().includes('acme')) {
             const cp = window._currentCompanyPolicy;
-            cfg.orgName = cp.company_name || cfg.orgName;
+            cfg.orgName = cp.company_name;
             cfg.domain = cp.company_domain || cfg.domain;
             cfg.industry = cp.company_industry || cfg.industry;
             cfg.cisoName = cp.ciso_name || cfg.cisoName;
