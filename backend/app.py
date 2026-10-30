@@ -425,6 +425,7 @@ app = create_app()
 #  frontend/src/js/auth.js's getCsrf().
 # ────────────────────────────────────────────────────────────────────────────
 
+@app.route('/health', methods=['GET'])
 @app.route('/api/health', methods=['GET'])
 @limiter.exempt
 def health():
