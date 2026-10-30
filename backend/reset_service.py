@@ -21,9 +21,10 @@ OTP_EXPIRY_SECONDS = 600  # 10 minutes
 def _get_redis_client():
     """Try to import and use the Redis client from extensions if connected."""
     try:
-        from extensions import redis_client
-        redis_client.ping()
-        return redis_client
+        from extensions import _is_redis_alive, redis_client
+        if _is_redis_alive():
+            return redis_client
+        return None
     except Exception:
         return None
 

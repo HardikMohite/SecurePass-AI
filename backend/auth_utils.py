@@ -18,20 +18,28 @@ RuntimeError — not just a None identity — when optional=True verification
 ran but found no token at all, so that case is caught here too; this
 always just returns None rather than ever raising.
 """
+from flask import g
 from flask_jwt_extended import get_jwt_identity
 
 from models import User, db
 
 
 def get_current_user():
-    """Return the User row for the requesting JWT's identity, or None."""
+    """Return the User row for the requesting JWT's identity, or None (cached per request)."""
+    if hasattr(g, '_current_user'):
+        return g._current_user
     try:
         uid = get_jwt_identity()
     except RuntimeError:
+        g._current_user = None
         return None
     if uid is None:
+        g._current_user = None
         return None
     try:
-        return db.session.get(User, int(uid))
+        user = db.session.get(User, int(uid))
+        g._current_user = user
+        return user
     except (TypeError, ValueError):
+        g._current_user = None
         return None

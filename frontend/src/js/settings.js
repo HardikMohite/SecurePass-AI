@@ -53,7 +53,7 @@
     }
 
     async function apiGet(url) {
-        const r = await fetch(url, { credentials: 'same-origin' });
+        const r = await fetch(url, { credentials: 'include' });
         if (!r.ok) throw new Error(await r.text());
         return r.json();
     }
@@ -64,7 +64,7 @@
         if (csrf) headers['X-CSRF-TOKEN'] = csrf;
         const r = await fetch(url, {
             method: 'PUT',
-            credentials: 'same-origin',
+            credentials: 'include',
             headers,
             body: JSON.stringify(body),
         });
@@ -78,7 +78,7 @@
         if (csrf) headers['X-CSRF-TOKEN'] = csrf;
         const r = await fetch(url, {
             method: 'POST',
-            credentials: 'same-origin',
+            credentials: 'include',
             headers,
             body: JSON.stringify(body),
         });
@@ -89,7 +89,7 @@
     async function apiDelete(url, body) {
         const csrf = getCsrf();
         const headers = {};
-        const opts = { method: 'DELETE', credentials: 'same-origin', headers };
+        const opts = { method: 'DELETE', credentials: 'include', headers };
         if (body !== undefined) {
             headers['Content-Type'] = 'application/json';
             opts.body = JSON.stringify(body);

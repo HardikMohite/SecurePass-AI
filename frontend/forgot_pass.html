@@ -413,6 +413,9 @@
                 }, 1000);
             }
 
+            // ── Pre-warm backend instance on page load ─────────────────────────
+            fetch('/api/health').catch(() => {});
+
             // ── Step 1 Form Handler ────────────────────────
             const step1Form = document.getElementById('step1Form');
             step1Form.addEventListener('submit', async (e) => {
@@ -433,12 +436,19 @@
                 sendBtn.disabled = true;
                 sendBtn.innerHTML = '<span class="spinner-border"></span> Sending…';
 
+                const warmTimer = setTimeout(() => {
+                    if (sendBtn && sendBtn.disabled) {
+                        sendBtn.innerHTML = '<span class="spinner-border"></span> Connecting to cloud…';
+                    }
+                }, 2500);
+
                 try {
                     const res = await fetch('/api/auth/forgot-password', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ email })
                     });
+                    clearTimeout(warmTimer);
                     const data = await res.json();
 
                     sendBtn.disabled = false;

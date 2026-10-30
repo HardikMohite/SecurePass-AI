@@ -180,7 +180,7 @@ def send_password_reset_email(to_email: str, otp_code: str, reset_url: str) -> d
     }
 
     try:
-        response = requests.post(BREVO_API_URL, json=payload, headers=headers, timeout=10)
+        response = requests.post(BREVO_API_URL, json=payload, headers=headers, timeout=5)
         if response.status_code in (200, 201, 202):
             logger.info("Brevo email dispatched successfully to %s", to_email)
             return {

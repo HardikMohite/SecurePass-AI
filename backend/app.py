@@ -177,7 +177,7 @@ def create_app(config_class=None):
                 "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
                 "font-src 'self' https://fonts.gstatic.com data:; "
                 "img-src 'self' data: https:; "
-                "connect-src 'self' https://api.pwnedpasswords.com https://api.groq.com;"
+                "connect-src 'self' https://*.onrender.com https://*.vercel.app https://api.pwnedpasswords.com https://api.groq.com;"
             )
         response.headers['X-XSS-Protection'] = '0'
         response.headers['X-Permitted-Cross-Domain-Policies'] = 'none'

@@ -88,10 +88,15 @@ def refresh_last_login():
     """
     Update last_login timestamp on every authenticated request,
     throttled to at most once per hour to avoid excessive DB writes.
-    Skips static files and requests with no (or an invalid/expired)
-    access token — optional=True means this never 401s a public request.
+    Skips static files, health checks, OPTIONS preflights, and unauthenticated routes.
     """
-    if request.path.startswith('/static'):
+    if request.method == 'OPTIONS':
+        return
+    if request.path in ('/health', '/api/health') or request.path.startswith((
+        '/static', '/assets', '/src', '/favicon',
+        '/api/auth/register', '/api/auth/login',
+        '/api/auth/forgot-password', '/api/auth/verify-otp', '/api/auth/reset-password'
+    )):
         return
 
     try:
@@ -292,19 +297,18 @@ def login():
         if not identifier or not password:
             return jsonify({'error': 'Email or username and password are required.'}), 400
 
-        user = None
+        norm_email = None
         if '@' in identifier:
             norm_email, _ = _normalise_email(identifier)
-            if norm_email:
-                user = User.query.filter(func.lower(User.email) == norm_email.lower()).first()
 
-        if not user:
-            user = User.query.filter(
-                or_(
-                    func.lower(User.username) == identifier.lower(),
-                    func.lower(User.email) == identifier.lower()
-                )
-            ).first()
+        query_conditions = [
+            func.lower(User.username) == identifier.lower(),
+            func.lower(User.email) == identifier.lower()
+        ]
+        if norm_email:
+            query_conditions.append(func.lower(User.email) == norm_email.lower())
+
+        user = User.query.filter(or_(*query_conditions)).first()
 
         # Check for active account lockout
         if user and user.is_locked():
