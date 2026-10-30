@@ -14,7 +14,10 @@
 window.Auth = (function () {
     'use strict';
 
-    const API = '/api/auth';
+    const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL && !import.meta.env.VITE_API_BASE_URL.includes('localhost'))
+        ? import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, '')
+        : '';
+    const API = API_BASE + '/api/auth';
 
     let _user = null;
 
@@ -35,13 +38,22 @@ window.Auth = (function () {
         const headers = Object.assign({ 'Content-Type': 'application/json' }, options.headers || {});
         // Only attach CSRF token for authenticated requests, not login/register
         if (['POST','PUT','DELETE','PATCH'].includes(method) && endpoint !== '/login' && endpoint !== '/register') {
-        const tok = await getCsrf();
-        if (tok) headers['X-CSRF-TOKEN'] = tok;
+            const tok = await getCsrf();
+            if (tok) headers['X-CSRF-TOKEN'] = tok;
+        }
+        try {
+            const res  = await fetch(API + endpoint, Object.assign({ credentials: 'include', headers }, options));
+            const data = await res.json().catch(() => ({}));
+            return { ok: res.ok, status: res.status, data };
+        } catch (fetchErr) {
+            console.error('[auth.js] Request failed:', fetchErr);
+            return {
+                ok: false,
+                status: 0,
+                data: { error: 'Network error: Unable to reach authentication server. Please check your backend connection.' }
+            };
+        }
     }
-    const res  = await fetch(API + endpoint, Object.assign({ credentials: 'include', headers }, options));
-    const data = await res.json().catch(() => ({}));
-    return { ok: res.ok, status: res.status, data };
-}
 
 async function refreshToken() {
     try {
@@ -143,7 +155,7 @@ async function login(identifier, password, remember) {
         })
     });
     if (r.ok) {
-        _user = r.data.user || r.data;
+        _user = (r.data && r.data.user) || r.data;
         if (_user) {
             try {
                 localStorage.setItem('sp_user_profile', JSON.stringify(_user));
@@ -152,14 +164,25 @@ async function login(identifier, password, remember) {
         }
         return { ok: true, user: _user };
     }
-    return { ok: false, error: r.data.error || 'Login failed.' };
+
+    let errorMsg = (r.data && (r.data.error || r.data.message));
+    if (!errorMsg) {
+        if (r.status === 401 || r.status === 403) {
+            errorMsg = 'Invalid email/username or password.';
+        } else if (r.status === 404 || r.status === 502 || r.status === 503 || r.status === 504) {
+            errorMsg = 'Cannot reach backend server. Please verify your Render service URL in vercel.json.';
+        } else {
+            errorMsg = 'Login failed. Please check your credentials and try again.';
+        }
+    }
+    return { ok: false, error: errorMsg };
 }
 
 async function register(username, email, password) {
     clearUserStorage();
     const r = await request('/register', { method: 'POST', body: JSON.stringify({ username, email, password }) });
     if (r.ok) {
-        _user = r.data.user || r.data;
+        _user = (r.data && r.data.user) || r.data;
         if (_user) {
             try {
                 localStorage.setItem('sp_user_profile', JSON.stringify(_user));
@@ -168,7 +191,22 @@ async function register(username, email, password) {
         }
         return { ok: true, user: _user };
     }
-    return { ok: false, error: r.data.error || 'Registration failed.' };
+
+    let errorMsg = (r.data && (r.data.error || r.data.message));
+    if (!errorMsg) {
+        if (r.status === 409) {
+            errorMsg = 'An account with this email or username already exists. Please sign in instead.';
+        } else if (r.status === 400) {
+            errorMsg = 'Invalid registration details. Please verify your email and password.';
+        } else if (r.status === 404 || r.status === 502 || r.status === 503 || r.status === 504) {
+            errorMsg = 'Cannot reach backend server. Please verify your Render service URL in vercel.json.';
+        } else if (r.status === 500) {
+            errorMsg = 'Server error during registration. Please try again in a few moments.';
+        } else {
+            errorMsg = 'Registration failed. Please check your credentials and try again.';
+        }
+    }
+    return { ok: false, error: errorMsg };
 }
 
 async function logout() {

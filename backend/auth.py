@@ -232,9 +232,16 @@ def register():
             return jsonify({'error': pw_err}), 400
 
         if User.query.filter_by(email=email).first():
-            return jsonify({'error': 'An account with this email already exists.'}), 409
+            return jsonify({'error': 'An account with this email already exists. Please sign in instead.'}), 409
 
-        user = User(email=email, username=data.get('username'))
+        raw_username = data.get('username')
+        username = raw_username.strip() if raw_username else None
+        if username:
+            existing_user = User.query.filter(func.lower(User.username) == username.lower()).first()
+            if existing_user:
+                return jsonify({'error': f'The username "{username}" is already taken. Please choose another username.'}), 409
+
+        user = User(email=email, username=username)
         user.set_password(data['password'])
         db.session.add(user)
 
