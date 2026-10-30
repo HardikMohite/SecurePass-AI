@@ -431,6 +431,7 @@ app = create_app()
 # ────────────────────────────────────────────────────────────────────────────
 
 @app.route('/api/health', methods=['GET'])
+@limiter.exempt
 def health():
     """Quick liveness check — returns 200 when the app is running."""
     return jsonify({'status': 'ok', 'service': 'SecurePass AI'}), 200

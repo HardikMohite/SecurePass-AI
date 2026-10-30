@@ -1,9 +1,21 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "vite",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "cleanUrls": true,
   "trailingSlash": false,
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }
+      ]
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",
@@ -13,18 +25,20 @@
       "source": "/static/(.*)",
       "destination": "https://REPLACE-WITH-YOUR-RENDER-BACKEND.onrender.com/static/$1"
     },
-    {
-      "source": "/403",
-      "destination": "/403.html"
-    },
-    {
-      "source": "/500",
-      "destination": "/500.html"
-    },
-    {
-      "source": "/404",
-      "destination": "/404.html"
-    },
+    { "source": "/login", "destination": "/login.html" },
+    { "source": "/register", "destination": "/register.html" },
+    { "source": "/profile", "destination": "/profile.html" },
+    { "source": "/forgot-password", "destination": "/forgot_pass.html" },
+    { "source": "/forgot_pass", "destination": "/forgot_pass.html" },
+    { "source": "/forgot", "destination": "/forgot_pass.html" },
+    { "source": "/reset-password", "destination": "/reset_password.html" },
+    { "source": "/reset_pass", "destination": "/reset_password.html" },
+    { "source": "/reset", "destination": "/reset_password.html" },
+    { "source": "/check-mail", "destination": "/check_mail.html" },
+    { "source": "/check_mail", "destination": "/check_mail.html" },
+    { "source": "/403", "destination": "/403.html" },
+    { "source": "/500", "destination": "/500.html" },
+    { "source": "/404", "destination": "/404.html" },
     {
       "source": "/((?!api/|static/|.*\\..*).*)",
       "destination": "/index.html"

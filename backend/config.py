@@ -14,6 +14,20 @@ import os
 from datetime import timedelta
 
 
+def normalize_database_uri(uri: str | None) -> str | None:
+    """Ensure database URI is compatible with SQLAlchemy and remote Postgres/Supabase."""
+    if not uri:
+        return uri
+    # Standardize postgres:// to postgresql:// for SQLAlchemy 1.4/2.x compatibility
+    if uri.startswith('postgres://'):
+        uri = uri.replace('postgres://', 'postgresql://', 1)
+    # Ensure sslmode=require for Supabase / cloud Postgres if omitted
+    if ('supabase.com' in uri or 'supabase.co' in uri) and 'sslmode=' not in uri:
+        delimiter = '&' if '?' in uri else '?'
+        uri = f"{uri}{delimiter}sslmode=require"
+    return uri
+
+
 class Config:
     """Base configuration — never instantiate directly."""
 
@@ -40,7 +54,8 @@ class Config:
     # plus `?sslmode=require`. Using the direct/session connection string
     # under normal app traffic can exhaust Supabase's connection limit.
     # See .env.example for the exact format.
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or 'sqlite:///securepass.db'
+    _raw_db = os.environ.get('DATABASE_URL')
+    SQLALCHEMY_DATABASE_URI = normalize_database_uri(_raw_db) or 'sqlite:///securepass.db'
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ECHO = False
     # ── Supabase / PgBouncer connection pool settings ──────────────────────
@@ -56,7 +71,6 @@ class Config:
             "pool_pre_ping": True,      # avoid "server closed the connection" errors
             "pool_timeout": 30,
             "connect_args": {
-                "options": "-c statement_timeout=30000",  # 30 s query timeout
                 "keepalives": 1,
                 "keepalives_idle": 30,
                 "keepalives_interval": 10,
@@ -131,7 +145,7 @@ class Config:
     # ------------------------------------------------------------------ #
     #  Redis (JWT revocation blocklist; also usable as RATELIMIT_STORAGE_URL) #
     # ------------------------------------------------------------------ #
-    REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+    REDIS_URL = os.environ.get('REDIS_URL')
 
     # ------------------------------------------------------------------ #
     #  File Upload                                                         #
@@ -147,19 +161,14 @@ class Config:
     RATELIMIT_DEFAULT = "200 per day;50 per hour"
     RATELIMIT_ANALYZE = "20 per hour"        # stricter limit for /api/analyze
     RATELIMIT_AUTH = "10 per minute"         # login / register endpoints
-    # Redis-backed by default — memory:// only works with a single worker
-    # and forgets all counters on every restart, so it isn't safe once
-    # you're running more than one gunicorn worker/instance (same reason
-    # the JWT blocklist in extensions.py uses Redis rather than an
-    # in-memory set). Accepts any redis:// or rediss:// URL — Upstash and
-    # Render's Redis add-on both work unmodified since the scheme alone
-    # tells `limits`/redis-py whether to use TLS. Falls back to REDIS_URL
-    # (already required for the JWT blocklist) if RATELIMIT_STORAGE_URL
-    # isn't set separately, so a single Redis instance can back both.
-    RATELIMIT_STORAGE_URL = (
-        os.environ.get('RATELIMIT_STORAGE_URL')
-        or os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
-    )
+    # Storage for rate limiter: use RATELIMIT_STORAGE_URL or REDIS_URL if provided, else memory://
+    _configured_rate_storage = os.environ.get('RATELIMIT_STORAGE_URL') or os.environ.get('REDIS_URL')
+    RATELIMIT_STORAGE_URL = _configured_rate_storage if _configured_rate_storage else 'memory://'
+    RATELIMIT_SWALLOW_ERRORS = True  # Prevent Redis outage/absence from returning 500 errors
+    RATELIMIT_STORAGE_OPTIONS = {
+        "socket_connect_timeout": 1,
+        "socket_timeout": 1,
+    }
 
     # ------------------------------------------------------------------ #
     #  CORS  (requires flask-cors)                                        #
@@ -207,17 +216,28 @@ class ProductionConfig(Config):
     DEBUG = False
     SESSION_COOKIE_SECURE = True
     REMEMBER_COOKIE_SECURE = True
-    SESSION_COOKIE_SAMESITE = 'Strict'
+    SESSION_COOKIE_SAMESITE = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
     JWT_COOKIE_SECURE = True          # cookies only ever sent over HTTPS
-    JWT_COOKIE_SAMESITE = 'Strict'    # browser only ever talks to one origin
-                                       # (see frontend/vercel.json's proxy —
-                                       # this backend is never a genuine
-                                       # cross-site request target)
+    JWT_COOKIE_SAMESITE = os.environ.get('JWT_COOKIE_SAMESITE', 'Lax')
 
     # Force Postgres (or other URL) in production; SQLite not suitable.
-    # No fallback here (unlike the base Config) — see __init__ below, which
-    # raises if DATABASE_URL isn't set at all.
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL')
+    _prod_raw_db = os.environ.get('DATABASE_URL')
+    SQLALCHEMY_DATABASE_URI = normalize_database_uri(_prod_raw_db) if _prod_raw_db else None
+
+    # Supabase / PgBouncer connection pool options in production
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_size": int(os.environ.get('DB_POOL_SIZE', 5)),
+        "max_overflow": int(os.environ.get('DB_MAX_OVERFLOW', 10)),
+        "pool_recycle": 300,        # 5 min — matches Supabase idle timeout
+        "pool_pre_ping": True,      # avoid "server closed the connection" errors
+        "pool_timeout": 30,
+        "connect_args": {
+            "keepalives": 1,
+            "keepalives_idle": 30,
+            "keepalives_interval": 10,
+            "keepalives_count": 5,
+        },
+    }
 
     def __init__(self):
         if not os.environ.get('SECRET_KEY'):

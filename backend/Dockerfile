@@ -46,6 +46,7 @@ COPY . .
 # excluded from the build context (logs/, generated chart output) — create
 # them and hand the whole tree to the non-root user.
 RUN mkdir -p /app/backend/logs /app/frontend/static/reports/output \
+    && chmod +x /app/backend/start.sh \
     && chown -R appuser:appuser /app
 
 USER appuser
@@ -70,19 +71,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 # once gunicorn's cwd is this WORKDIR.
 WORKDIR /app/backend
 
-# $PORT is injected by the hosting platform (Render); defaults to 5000 for
-# local `docker run`. $WEB_CONCURRENCY overrides the worker count (e.g. to
-# match a specific plan's CPU allocation); 3 is a reasonable default for a
-# small/medium single-core-ish instance (~2x cores + 1). --access-logfile
-# and --error-logfile go to stdout/stderr so gunicorn's own request logs
-# and worker tracebacks show up in Render's log dashboard — the app's own
-# file logger (LOG_FILE, see app.py's _configure_logging) writes inside
-# this container's ephemeral filesystem instead and won't appear there.
-CMD gunicorn \
-    --bind 0.0.0.0:${PORT:-5000} \
-    --workers ${WEB_CONCURRENCY:-3} \
-    --threads 2 \
-    --timeout 120 \
-    --access-logfile - \
-    --error-logfile - \
-    wsgi:app
+# Runs start.sh which runs flask db upgrade against Supabase (if DATABASE_URL is set)
+# and then starts gunicorn with sensible worker count for Render.
+CMD ["/bin/sh", "/app/backend/start.sh"]

@@ -1,11 +1,9 @@
 # render.yaml — SecurePass AI backend
 #
 # Docker-runtime web service. Build context is the project root; the
-# Dockerfile lives at backend/Dockerfile (see the notes in that file and
-# in backend/.dockerignore for why). Env vars below are declared with
-# `sync: false` wherever they're a secret or deployment-specific value —
-# Render will prompt for those in the dashboard rather than storing them
-# in this file. Vars with a `value:` are safe, non-secret defaults.
+# Dockerfile lives at backend/Dockerfile.
+# Env vars below are declared with `generateValue: true` for automatic
+# secure key generation or `sync: false` for secrets.
 
 services:
   - type: web
@@ -19,44 +17,39 @@ services:
     autoDeploy: true
 
     envVars:
-      # ── Required — app raises on startup in production if these are
-      #    unset (see config.py ProductionConfig.__init__) ──────────────
+      # Render will automatically generate unique cryptographically secure secrets
       - key: SECRET_KEY
-        sync: false
+        generateValue: true
       - key: JWT_SECRET_KEY
-        sync: false
+        generateValue: true
+
+      # Required: Supabase connection string (port 6543 or 5432)
+      # e.g. postgresql://postgres.[REF]:[PASS]@aws-0-[REGION].pooler.supabase.com:6543/postgres?sslmode=require
       - key: DATABASE_URL
         sync: false
 
-      # ── Required for the app to be reachable / functional in
-      #    production, even though the code itself falls back quietly ──
       - key: FLASK_ENV
         value: production
-      - key: REDIS_URL
-        sync: false
+
+      # Optional: set to your Vercel URL (e.g. https://your-app.vercel.app)
+      # if calling Render backend directly without Vercel's rewrite proxy
       - key: CORS_ORIGINS
         sync: false
-        # If the frontend is deployed on Vercel with frontend/vercel.json's
-        # /api/* rewrite (recommended — see README "Production Deployment"),
-        # the browser only ever talks to the Vercel domain and this backend
-        # never sees a cross-origin request, so CORS_ORIGINS can stay unset.
-        # Only set this (to your Vercel URL, e.g. https://your-app.vercel.app)
-        # if the frontend calls this API directly instead of via that proxy.
 
-      # ── Optional — safe defaults; override in the dashboard if needed ─
+      # Optional: Redis for distributed rate limits & token blocklist.
+      # If left unset, the backend automatically and safely uses memory:// without errors.
+      - key: REDIS_URL
+        sync: false
       - key: RATELIMIT_STORAGE_URL
         sync: false
+
       - key: LOG_LEVEL
         value: INFO
       - key: LOG_FILE
         value: logs/securepass.log
       - key: WEB_CONCURRENCY
-        value: "3"
+        value: "2"
 
-      # ── Optional — AI features degrade to a deterministic fallback
-      #    (see app.py _generate_policy_ai_summary) if unset ───────────
+      # Optional: Groq API key for AI-generated password policies
       - key: GROQ_API_KEY
         sync: false
-
-      # ── Render sets PORT automatically; not declared here on purpose —
-      #    backend/Dockerfile's CMD reads it via ${PORT:-5000}.

@@ -296,36 +296,29 @@ first — the frontend's proxy config needs its URL.
 
 ### 1. Backend → Render
 
-Render reads `render.yaml` at the project root as a Blueprint:
+Render reads `render.yaml` at the project root as an Infrastructure-as-Code Blueprint:
 
-1. Push this repo to GitHub/GitLab, then in Render: **New → Blueprint**,
-   point it at the repo. It picks up `render.yaml` automatically
-   (Docker runtime, `backend/Dockerfile`, health check at `/api/health`).
-2. Render will prompt for the `sync: false` env vars — fill in at minimum:
-   `SECRET_KEY`, `JWT_SECRET_KEY`, `DATABASE_URL` (your Supabase transaction
-   pooler string), `REDIS_URL`. Leave `CORS_ORIGINS` empty (see note below).
-3. Deploy, then note the resulting URL — something like
-   `https://securepass-backend.onrender.com`.
-4. Run migrations once against the live database (locally, with
-   `DATABASE_URL` pointed at Supabase): `flask db upgrade`.
+1. Push this repo to GitHub, then in Render: **New → Blueprint**, point it at the repo.
+2. Render reads `render.yaml` automatically:
+   - **Secrets**: `SECRET_KEY` and `JWT_SECRET_KEY` are auto-generated with cryptographically secure random keys.
+   - **Database**: When prompted for `DATABASE_URL`, paste your Supabase connection string.
+   - **Migrations**: Automatically applied on startup via `backend/start.sh` (`flask db upgrade`).
+   - **Redis**: Optional — if not provided, the backend automatically uses safe in-memory rate limiting and token management.
+3. Deploy. Note your resulting Render URL — e.g. `https://securepass-backend.onrender.com`.
+4. Verify by opening `https://<your-backend>.onrender.com/api/health` (returns `{"service": "SecurePass AI", "status": "ok"}`).
 
 ### 2. Frontend → Vercel
 
-The frontend talks to the backend using relative paths (`/api/...`,
-`credentials: 'include'`) — it was built to be served from the same origin
-as the API. `frontend/vercel.json` recreates that on Vercel by proxying
-`/api/*` and `/static/*` through to Render, so the browser only ever talks
-to your Vercel domain (no CORS, no cross-site cookie issues):
+The frontend talks to the backend using same-origin relative paths (`/api/...`, `credentials: 'include'`). Vercel proxies `/api/*` and `/static/*` straight through to Render, eliminating third-party cookie blocking and CORS issues:
 
-1. Open `frontend/vercel.json` and replace both
-   `REPLACE-WITH-YOUR-RENDER-BACKEND.onrender.com` occurrences with your
-   actual Render backend hostname from step 1.
-2. In Vercel: **New Project**, import the repo, set **Root Directory** to
-   `frontend`. Vercel will read `vercel.json` for the build command
-   (`npm run build`) and output directory (`dist`); `cleanUrls` makes
-   in-app links like `/login` resolve to `login.html`.
-3. Deploy. Your app is live at `https://your-app.vercel.app`, proxying API
-   calls straight to Render.
+1. In `vercel.json` (root) and `frontend/vercel.json`, replace:
+   `https://REPLACE-WITH-YOUR-RENDER-BACKEND.onrender.com`
+   with your actual Render backend URL (e.g. `https://securepass-backend.onrender.com`).
+2. In Vercel: **New Project**, import the `SecurePass-AI` repository.
+   - Works immediately from the root directory or if **Root Directory** is set to `frontend`.
+   - Build Command: `npm run build`
+   - Output Directory: `dist` (or `frontend/dist`)
+3. Click **Deploy**. Your app is live at `https://your-app.vercel.app`, securely proxying API requests to your Render backend with first-party cookies.
 
 > **Why not CORS instead of the proxy?** You can — set `CORS_ORIGINS` on
 > Render to your Vercel URL and switch the frontend's fetch calls to an

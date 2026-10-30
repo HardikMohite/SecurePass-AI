@@ -1,0 +1,11 @@
+{
+  "name": "securepass-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SecurePass AI — Production Enterprise Password Security & Auditing Platform",
+  "scripts": {
+    "build": "npm --prefix frontend run build",
+    "dev": "npm --prefix frontend run dev",
+    "preview": "npm --prefix frontend run preview"
+  }
+}

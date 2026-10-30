@@ -37,8 +37,14 @@ jwt = JWTManager()
 
 # ── Redis ────────────────────────────────────────────────────────────────
 # redis.from_url() connects lazily with short connect timeout to avoid blocking
-REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
-redis_client = redis.from_url(REDIS_URL, decode_responses=True, socket_connect_timeout=0.1, socket_timeout=0.1)
+REDIS_URL = os.environ.get('REDIS_URL')
+if REDIS_URL:
+    try:
+        redis_client = redis.from_url(REDIS_URL, decode_responses=True, socket_connect_timeout=0.2, socket_timeout=0.2)
+    except Exception:
+        redis_client = None
+else:
+    redis_client = None
 
 _BLOCKLIST_PREFIX = 'jwt_blocklist:'
 _in_memory_blocklist = {}
@@ -49,6 +55,8 @@ _last_redis_check = 0
 def _is_redis_alive() -> bool:
     """Fast liveness check with 15-second negative caching to prevent socket timeouts."""
     global _redis_available, _last_redis_check
+    if redis_client is None:
+        return False
     import time
     now = time.time()
     if _redis_available is False and (now - _last_redis_check) < 15:
