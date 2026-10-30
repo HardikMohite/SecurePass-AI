@@ -141,24 +141,19 @@ def create_app(config_class=None):
     limiter.init_app(app)
     app.limiter = limiter
 
-    # CORS — restricted to the explicit allowlist in CORS_ORIGINS.
-    # supports_credentials=True is required now that auth is cookie-based
-    # (see config.py's JWT_TOKEN_LOCATION) for local development, where the
-    # Vite dev server (CORS_ORIGINS=http://localhost:5173) and this API run
-    # on different origins/ports — the browser won't attach or accept
-    # cookies on a cross-origin fetch(..., {credentials:'include'}) unless
-    # the response carries Access-Control-Allow-Credentials: true, which
-    # Flask-CORS only sends when explicitly told to and never together
-    # with a wildcard origin (CORS_ORIGINS has no wildcard — see its
-    # comment above). In production, the frontend talks to this API via
-    # the same-origin Vercel proxy (frontend/vercel.json) so this path
-    # isn't actually exercised there, but it must still be correct for
-    # anyone who deploys the two on genuinely separate origins instead.
+    # CORS — allow explicitly configured origins plus all Vercel deployment preview/production URLs
+    cors_origins = list(app.config.get('CORS_ORIGINS', []))
+    import re
+    cors_origins.append(re.compile(r"^https://.*\.vercel\.app$"))
+    cors_origins.append("http://localhost:5173")
+    cors_origins.append("http://localhost:5000")
+
     CORS(
         app,
-        origins=app.config.get('CORS_ORIGINS', []),
+        origins=cors_origins,
         supports_credentials=True,
-        allow_headers=['Authorization', 'Content-Type', 'X-CSRF-TOKEN'],
+        allow_headers=['Authorization', 'Content-Type', 'X-CSRF-TOKEN', 'Accept', 'Origin', 'X-Requested-With'],
+        methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     )
 
     # ── Security response headers (OWASP Secure Headers) ───────────────

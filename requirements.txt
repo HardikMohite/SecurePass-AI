@@ -1,0 +1,52 @@
+# SecurePass AI — Python Dependencies
+# Generated to match all modules in the codebase after refactoring.
+# Install with: pip install -r requirements.txt
+
+# ── Web framework ─────────────────────────────────────────────────
+Flask==3.0.3
+Flask-JWT-Extended==4.6.0 # JWT access/refresh auth (replaces Flask-Login); also
+                           # provides CSRF double-submit cookie protection —
+                           # see config.py's JWT_COOKIE_CSRF_PROTECT
+Flask-SQLAlchemy==3.1.1
+Flask-Limiter[redis]==3.8.0  # Rate limiting on /api/analyze and auth routes (Redis-backed storage)
+Flask-Cors==4.0.1          # CORS — restricted to CORS_ORIGINS (see config.py)
+Werkzeug==3.0.3            # secure_filename, password hashing
+
+# ── Database ──────────────────────────────────────────────────────
+SQLAlchemy==2.0.35
+Flask-Migrate==4.0.7       # Alembic-based schema migrations (flask db ...)
+psycopg2-binary>=2.9.9     # PostgreSQL driver (Supabase) — compatible with SQLAlchemy 2.0.35
+
+# ── AI / LLM ─────────────────────────────────────────────────────
+groq==0.9.0                # Groq API client (ai_engine.py)
+
+# ── HTTP / Networking ─────────────────────────────────────────────
+requests==2.32.3           # HIBP API calls (hibp_checker.py)
+urllib3==1.26.20             # Transitive dep of requests — pin for security
+
+# ── PDF Report Generation ─────────────────────────────────────────
+reportlab==4.2.2           # PDF generation (pdf_gen.py)
+
+# ── Chart / Visualisation ─────────────────────────────────────────
+matplotlib==3.9.2          # Chart generation (charts.py)
+numpy==2.4.4              # Used by matplotlib gauge chart
+
+# ── Email validation ──────────────────────────────────────────────
+email-validator==2.2.0     # auth.py registration validation
+
+# ── Environment / Config ──────────────────────────────────────────
+python-dotenv==1.0.1       # Load .env file for development
+
+# ── Rate limiter storage / JWT revocation blocklist ───────────────
+# Redis now required (not optional) — backs both the JWT blocklist above
+# and, via RATELIMIT_STORAGE_URL (see config.py), flask-limiter's own
+# counters. See extensions.py for why an in-memory blocklist/store
+# doesn't work once you have >1 worker/instance.
+redis==5.0.8
+
+# ── WSGI Server (production) ──────────────────────────────────────
+gunicorn==22.0.0           # Production WSGI server
+# Alternatively: waitress==3.0.0  (Windows-compatible)
+
+# ── Security extras ───────────────────────────────────────────────
+cryptography==43.0.1       # Secure token generation helpers

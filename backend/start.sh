@@ -3,6 +3,13 @@ set -e
 
 echo "=== Starting SecurePass AI Backend ==="
 
+# Determine directory
+if [ -d "backend" ]; then
+    cd backend
+fi
+
+export FLASK_APP=app.py
+
 # Auto-apply database migrations if DATABASE_URL is provided
 if [ -n "$DATABASE_URL" ]; then
     echo "Checking and applying database migrations (flask db upgrade)..."
@@ -18,4 +25,3 @@ exec gunicorn \
     --access-logfile - \
     --error-logfile - \
     wsgi:app
-

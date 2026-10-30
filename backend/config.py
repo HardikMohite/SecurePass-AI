@@ -218,7 +218,7 @@ class ProductionConfig(Config):
     REMEMBER_COOKIE_SECURE = True
     SESSION_COOKIE_SAMESITE = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
     JWT_COOKIE_SECURE = True          # cookies only ever sent over HTTPS
-    JWT_COOKIE_SAMESITE = os.environ.get('JWT_COOKIE_SAMESITE', 'Lax')
+    JWT_COOKIE_SAMESITE = os.environ.get('JWT_COOKIE_SAMESITE', 'None')
 
     # Force Postgres (or other URL) in production; SQLite not suitable.
     _prod_raw_db = os.environ.get('DATABASE_URL')
