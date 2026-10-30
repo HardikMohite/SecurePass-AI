@@ -608,7 +608,8 @@ def _fallback_company_policy(
 ) -> Dict[str, Any]:
     org_name = (company_info.get('name') or company_info.get('org_name') or 'Enterprise Organization').strip()
     domain   = (company_info.get('domain') or 'company.com').strip().lower().replace('https://', '').replace('http://', '').split('/')[0]
-    industry = (company_info.get('industry') or 'Technology & Cloud Services').strip()
+    industry = (company_info.get('industry') or 'Technology & Cloud SaaS').strip()
+    notes    = (company_info.get('notes') or '').strip()
 
     total_pw = dataset_stats.get('total_passwords', 0)
     weak_pw  = dataset_stats.get('weak_passwords', 0)
@@ -616,49 +617,133 @@ def _fallback_company_policy(
     score    = round(float(risk_data.get('score', 0) or 0), 1)
     breaches = hibp.get('total_breached', hibp.get('estimated_breached', dataset_stats.get('breached_count', 0)))
 
-    # Clean brand tokens for blacklist
-    brand_slug = org_name.lower().replace(' ', '').replace('-', '')
+    # Brand and domain specific tokens for blacklist
+    brand_clean = re.sub(r'[^a-zA-Z0-9]', '', org_name).lower()
     domain_slug = domain.split('.')[0] if '.' in domain else domain
 
     forbidden = [
-        f"Company name variations ('{org_name}', '{brand_slug}', '{brand_slug}123')",
-        f"Domain identifiers ('{domain}', '{domain_slug}')",
-        "Seasonal references ('Spring2026!', 'Winter2025')",
-        "Keyboard walks ('qwerty', 'asdfgh', '123456')",
-        "Dictionary words without entropy expansion",
-        "Simple character substitutions ('@' for 'a', '1' for 'i')",
+        f"'{org_name}' brand permutations ('{brand_clean}', '{brand_clean}2026', '{brand_clean}123')",
+        f"Domain identifiers ('{domain}', '{domain_slug}', '{domain_slug}2026!')",
+        "Seasonal identifiers ('Spring2026!', 'Autumn2026#', 'Winter2027')",
+        "Predictable keyboard walks ('qwertyuiop', 'asdfghjkl', '12345678')",
+        "Common dictionary baseline terms without high-entropy word chaining",
+        "Predictable leetspeak substitutions ('@' for 'a', '0' for 'o', '1' for 'i')",
     ]
 
-    min_len = 14 if score >= 40 else 12
+    min_len = 16 if score >= 60 else (14 if score >= 30 else 12)
+    min_priv = 18 if min_len >= 14 else 16
 
-    # Memorable passphrases
-    passphrases = [
-        f"Beacon-Granite-Cipher-84!",
-        f"Horizon-Falcon-Timber-29#",
-        f"Velvet-Orbit-Shield-73$",
-        f"Cobalt-Glacier-Matrix-91*",
-        f"Anchor-Summit-Echo-46@",
-    ]
+    # Dynamic industry-specific threat models
+    ind_lower = industry.lower()
+    if 'fintech' in ind_lower or 'bank' in ind_lower or 'financ' in ind_lower:
+        sector_threat = (
+            f"As a financial institution operating in {industry}, {org_name} is targeted by automated credential-stuffing "
+            f"botnets seeking unauthorized Automated Clearing House (ACH) access, wire transfer diversion, and API key scraping. "
+            f"Compliance standards (PCI-DSS v4.0 Req 8.3.6) require stringent credential entropy and continuous screening."
+        )
+        sector_vectors = [
+            f"Automated credential stuffing targeting customer and employee banking portals at {domain}",
+            "Adversary-in-the-middle (AiTM) reverse proxy phishing defeating basic SMS/OTP authentication",
+            "Privileged database and payment gateway credential brute-force attacks",
+            "Third-party financial aggregator API token leakage and session hijacking"
+        ]
+        sector_dos = [
+            f"Use high-entropy 4-word passphrases for all {org_name} financial systems and core banking portals.",
+            "Store all corporate secrets strictly in the organization-managed FIDO2 password vault.",
+            "Physically verify payment gateway and core ledger MFA requests before approving.",
+            "Immediately report unauthorized password reset notifications to the security operations center."
+        ]
+        passphrases = [
+            "Ledger-Falcon-Cobalt-83$",
+            "Vault-Granite-Cipher-42#",
+            "Sovereign-Orbit-Anchor-91*",
+            "Beacon-Glacier-Matrix-76!",
+        ]
+    elif 'health' in ind_lower or 'bio' in ind_lower or 'medic' in ind_lower or 'pharma' in ind_lower:
+        sector_threat = (
+            f"Operating in {industry}, {org_name} maintains electronic Protected Health Information (ePHI) subject to "
+            f"HIPAA Security Rule §164.312. Threat actors target clinical workforce logins through targeted phishing "
+            f"and shared workstation credential harvesting to execute ransomware extortion."
+        )
+        sector_vectors = [
+            f"Targeted spear-phishing campaigns masquerading as clinical software updates for {domain}",
+            "Unattended clinical workstation credential extraction in emergency and nursing units",
+            "Remote Telehealth portal credential stuffing using historical breach dumps",
+            "Electronic Health Record (EHR) service account compromise and lateral movement"
+        ]
+        sector_dos = [
+            f"Always lock clinical terminals (Win+L / Badge Tap) when leaving patient rooms or nursing stations.",
+            f"Use unique, memorable passphrases for your {org_name} Electronic Health Record (EHR) logins.",
+            "Never write workstation passwords on monitor bezels, desks, or physical charts.",
+            "Immediately escalate patient portal credential anomalies to the HIPAA Security Officer."
+        ]
+        passphrases = [
+            "Helix-Summit-Beacon-91!",
+            "Pulse-Timber-Glacier-67$",
+            "Clinical-Orbit-Shield-54#",
+            "Care-Anchor-Echo-38*",
+        ]
+    elif 'commerce' in ind_lower or 'retail' in ind_lower or 'shop' in ind_lower:
+        sector_threat = (
+            f"As a modern commerce enterprise in {industry}, {org_name} faces distributed bot attacks executing "
+            f"account takeovers (ATO), gift card/loyalty balance liquidation, and payment processing token theft. "
+            f"High seasonal employee turnover demands automated lifecycle governance."
+        )
+        sector_vectors = [
+            f"Distributed botnet credential stuffing targeting customer accounts and merchant logins at {domain}",
+            "E-commerce administrator dashboard password spraying during peak seasonal events",
+            "Third-party shopping cart and payment gateway plugin credential harvesting",
+            "Compromised warehouse and merchant support representative session hijacking"
+        ]
+        sector_dos = [
+            f"Use complex passphrases for all {org_name} merchant administration and inventory systems.",
+            "Enforce hardware-backed MFA across all payment gateways and customer database consoles.",
+            "Never reuse retail support credentials across staging and production environments.",
+            "Promptly report suspicious spikes in failed customer login activity to SecOps."
+        ]
+        passphrases = [
+            "Market-Granite-Cipher-49!",
+            "Cart-Horizon-Falcon-82#",
+            "Fleet-Glacier-Matrix-63$",
+            "Retail-Summit-Shield-71*",
+        ]
+    else:
+        sector_threat = (
+            f"As an active technology organization operating within {industry}, {org_name} is targeted by "
+            f"sophisticated credential stuffing, adversary-in-the-middle (AiTM) phishing, and API key extraction "
+            f"designed to breach corporate cloud repositories and developer infrastructure."
+        )
+        sector_vectors = [
+            f"Targeted credential stuffing using breach databases against {domain} Single Sign-On (SSO)",
+            "Password spraying targeting remote engineering workforce VPNs and developer bastions",
+            "CI/CD pipeline and cloud provider (AWS/GCP/Azure) token leakage via unvetted commits",
+            "Offline hash cracking from exposed developer backups or compromised endpoint memory"
+        ]
+        sector_dos = [
+            f"Use memorable 4-word passphrases (e.g. {min_priv}+ chars) for your {org_name} single sign-on logins.",
+            "Store all infrastructure secrets and API keys strictly in approved corporate password vaults.",
+            "Verify all FIDO2 push authentication prompts on your physical device before confirming.",
+            "Lock your screen immediately whenever stepping away from your engineering workstation."
+        ]
+        passphrases = [
+            "Beacon-Granite-Cipher-84!",
+            "Horizon-Falcon-Timber-29#",
+            "Velvet-Orbit-Shield-73$",
+            "Cobalt-Glacier-Matrix-91*",
+            "Anchor-Summit-Echo-46@",
+        ]
 
     return {
         'company_profile': {
             'name': org_name,
             'domain': domain,
             'industry': industry,
-            'threat_exposure': (
-                f"As an active organization operating within {industry}, {org_name} faces targeted credential stuffing, "
-                f"adversary-in-the-middle (AiTM) phishing, and offline GPU brute-force attacks aimed at corporate cloud access."
-            ),
-            'primary_attack_vectors': [
-                f"Targeted credential stuffing using breach databases against {domain}",
-                "Password spraying against single sign-on (SSO) and remote workforce portals",
-                "Automated dictionary attacks leveraging common industry nomenclature",
-                "Offline hash extraction via compromised endpoint memory dumps",
-            ],
+            'threat_exposure': sector_threat,
+            'primary_attack_vectors': sector_vectors,
         },
         'technical_rules': {
             'minimum_length': min_len,
-            'passphrase_recommended_length': 18,
+            'passphrase_recommended_length': min_priv,
             'require_uppercase': True,
             'require_lowercase': True,
             'require_numbers': True,
@@ -674,21 +759,21 @@ def _fallback_company_policy(
                 "Mandatory multi-factor authentication across all corporate resources, prioritizing hardware security keys "
                 "(FIDO2 / WebAuthn) or time-based one-time password (TOTP) authenticators."
             ),
+            'breach_screening': (
+                f"Continuous verification against SecurePass AI Adaptive Threat Feeds and corporate breach corpora. "
+                f"Credentials detected in breach dumps are invalidated automatically."
+            )
         },
         'forbidden_patterns': forbidden,
         'ai_summary': (
             f"Security analysis of {total_pw} credentials for {org_name} revealed {weak_pw} weak entries with an average "
-            f"length of {avg_len} characters and {breaches} historical breach hits. This tailored policy enforces a {min_len}-character "
-            f"baseline combined with passphrases and continuous breach screening, directly neutralizing the discovered pattern vulnerabilities "
-            f"without disrupting daily employee workflows."
+            f"length of {avg_len} characters and {breaches} historical breach hits. Formulated in direct accordance with "
+            f"SecurePass AI Zero-Trust Telemetry, this bespoke policy enforces a {min_len}-character baseline combined with "
+            f"passphrases and continuous breach screening, directly neutralizing the discovered pattern vulnerabilities "
+            f"across {domain} without disrupting daily employee workflows."
         ),
         'staff_guidelines': {
-            'dos': [
-                f"Use memorable 4-word passphrases (e.g. 'Coffee-Rocket-Guitar-Blue7!') for your {org_name} logins.",
-                "Store all credentials in the organization's approved password manager.",
-                "Verify every MFA prompt on your device before approving authentication.",
-                "Report unexpected password reset emails to the security team immediately.",
-            ],
+            'dos': sector_dos,
             'donts': [
                 f"Never include '{org_name}', '{domain_slug}', your username, or current season in passwords.",
                 "Do not reuse your corporate password on external websites, personal services, or social media.",

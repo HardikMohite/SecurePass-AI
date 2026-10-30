@@ -2001,9 +2001,9 @@
                         </p>
                     </div>
                     <div style="display:flex; gap:10px; align-items:center;">
-                        <button id="btnAipGoReportsTop" type="button" class="btn btn-primary btn-sm" style="display:inline-flex; align-items:center; gap:6px;" onclick="window.showPage('reports');">
-                            <i data-lucide="file-text" style="width:14px;height:14px;"></i>
-                            <span>View Reports &amp; Export PDF</span>
+                        <button id="btnAipDownloadPdfTop" type="button" class="btn btn-primary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
+                            <i data-lucide="download" style="width:14px;height:14px;"></i>
+                            <span>Download Policy PDF</span>
                         </button>
                     </div>
                 </div>
@@ -2025,13 +2025,13 @@
 
                         <div style="display:grid; grid-template-columns: 1.2fr 1.3fr 1fr 1fr; gap:14px;">
                             <div>
-                                <label style="display:block; font-size:11.5px; font-weight:700; color:#475569; margin-bottom:6px;">Company / Brand Name</label>
-                                <input id="aipInputOrgName" type="text" value="Acme Corporation" placeholder="e.g. Acme Corp, Stripe, Cloudflare" style="width:100%; padding:9px 12px; border:1.5px solid #cbd5e1; border-radius:8px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none;" />
+                                <label style="display:block; font-size:11.5px; font-weight:700; color:#475569; margin-bottom:6px;">Company / Brand Name <span style="color:#ef4444;">*</span></label>
+                                <input id="aipInputOrgName" type="text" value="" placeholder="e.g. Stripe, Tech Mahindra, Acme Corp" style="width:100%; padding:9px 12px; border:1.5px solid #cbd5e1; border-radius:8px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none;" />
                             </div>
                             <div>
-                                <label style="display:block; font-size:11.5px; font-weight:700; color:#475569; margin-bottom:6px;">Website Domain / URL</label>
+                                <label style="display:block; font-size:11.5px; font-weight:700; color:#475569; margin-bottom:6px;">Website Domain / URL <span style="color:#ef4444;">*</span></label>
                                 <div style="display:flex; gap:6px;">
-                                    <input id="aipInputDomain" type="text" value="acme.com" placeholder="e.g. acme.com, stripe.com" style="width:100%; padding:9px 12px; border:1.5px solid #cbd5e1; border-radius:8px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none;" />
+                                    <input id="aipInputDomain" type="text" value="" placeholder="e.g. stripe.com, techmahindra.com" style="width:100%; padding:9px 12px; border:1.5px solid #cbd5e1; border-radius:8px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none;" />
                                     <button id="btnAipSearchDomain" type="button" class="btn btn-secondary btn-sm" title="Search web domain intelligence" style="white-space:nowrap; padding:0 10px; font-size:11.5px; display:inline-flex; align-items:center; gap:4px;">
                                         <i data-lucide="search" style="width:13px;height:13px;"></i>
                                         <span>Search</span>
@@ -2052,7 +2052,7 @@
                             </div>
                             <div>
                                 <label style="display:block; font-size:11.5px; font-weight:700; color:#475569; margin-bottom:6px;">Security Approver (CISO)</label>
-                                <input id="aipInputCisoName" type="text" value="Chief Information Security Officer (CISO)" placeholder="e.g. CISO / Head of Security" style="width:100%; padding:9px 12px; border:1.5px solid #cbd5e1; border-radius:8px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none;" />
+                                <input id="aipInputCisoName" type="text" value="" placeholder="e.g. Jane Doe (CISO) or SecOps Team" style="width:100%; padding:9px 12px; border:1.5px solid #cbd5e1; border-radius:8px; font-size:13px; color:#0f172a; background:#f8fafc; outline:none;" />
                             </div>
                         </div>
                         <div style="margin-top:12px;">

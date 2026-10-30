@@ -80,7 +80,7 @@ from risk_score import calculate_risk_score
 from config import get_config
 from models import Analysis, db
 from reports.charts import generate_charts
-from reports.pdf_gen import generate_pdf_report
+from reports.pdf_gen import generate_pdf_report, generate_ai_policy_pdf
 from utils.validators import validate_single_password, validate_uploaded_file
 from utils.redaction import SecureLogFilter, assert_no_password_data, mask_password_preview
 
@@ -1954,9 +1954,14 @@ def ai_policy():
             return str(val)[:max_len].strip()
 
         user_name         = _clean(data.get('user_name'))
-        org_name          = _clean(data.get('company_name') or data.get('org_name') or 'Acme Corporation')
-        domain            = _clean(data.get('company_domain') or data.get('domain') or 'acme.com')
-        industry          = _clean(data.get('company_industry') or data.get('industry') or 'Technology / Cloud Services')
+        org_name          = _clean(data.get('company_name') or data.get('org_name'))
+        domain            = _clean(data.get('company_domain') or data.get('domain'))
+        industry          = _clean(data.get('company_industry') or data.get('industry') or 'Technology & Cloud SaaS')
+
+        if not org_name or not domain:
+            return jsonify({
+                'error': 'Please provide your Company / Brand Name and Official Website Domain to formulate a tailored AI policy.'
+            }), 400
         notes             = _clean(data.get('security_focus') or data.get('notes') or '')
         city              = _clean(data.get('city'))
         analysis_id       = data.get('analysis_id')
@@ -2178,6 +2183,42 @@ def ai_policy():
     except Exception:
         app.logger.exception('Unhandled error in /api/ai-policy')
         return jsonify({'error': 'Policy generation failed. Please try again.'}), 500
+
+
+# ── /api/ai-policy/download-pdf — dedicated AI Policy PDF download ─────── #
+
+@app.route('/api/ai-policy/download-pdf', methods=['POST', 'GET'])
+@jwt_required(optional=True)
+def download_ai_policy_pdf():
+    """
+    Generate and stream an executive, bespoke AI Enterprise Password Policy PDF.
+    Accepts JSON payload with policy details, or query parameters.
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        policy_data = data.get('policy') or data
+
+        org_name = policy_data.get('company_name') or request.args.get('company_name')
+        domain = policy_data.get('company_domain') or request.args.get('company_domain')
+
+        if not org_name:
+            return jsonify({
+                'error': 'Company name is required to download policy PDF. Please enter your firm details first.'
+            }), 400
+
+        pdf_bytes = generate_ai_policy_pdf(policy_data)
+        safe_name = re.sub(r'[^a-zA-Z0-9_-]', '_', str(org_name)).strip('_') or 'Enterprise'
+        download_name = f"{safe_name}_Password_Policy.pdf"
+
+        return send_file(
+            BytesIO(pdf_bytes),
+            as_attachment=True,
+            download_name=download_name,
+            mimetype='application/pdf'
+        )
+    except Exception as exc:
+        app.logger.exception('Error in /api/ai-policy/download-pdf')
+        return jsonify({'error': 'Failed to generate policy PDF. Please try again.'}), 500
 
 
 # ── /api/company-lookup — web & threat intelligence lookup ───────────────── #

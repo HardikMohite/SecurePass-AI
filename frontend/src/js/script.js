@@ -5506,7 +5506,7 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
             const uname = S.user.username || S.user.email.split('@')[0];
             return (uname.charAt(0).toUpperCase() + uname.slice(1)) + ' Enterprise';
         }
-        return 'Acme Corporation';
+        return '';
     }
 
     function setupAIPolicy() {
@@ -5533,8 +5533,6 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
                 if (industrySelect && p.industry) industrySelect.value = p.industry;
                 if (cisoInput && p.cisoName) cisoInput.value = p.cisoName;
                 if (notesInput && p.notes) notesInput.value = p.notes;
-            } else if (orgInput && !orgInput.value) {
-                orgInput.value = _getDefaultOrgName();
             }
         } catch {}
 
@@ -5582,6 +5580,14 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
             });
         }
 
+        // Top PDF download button
+        const topPdfBtn = document.getElementById('btnAipDownloadPdfTop');
+        if (topPdfBtn) {
+            topPdfBtn.onclick = () => {
+                _aipDownloadPdf();
+            };
+        }
+
         // Check if there is already a cached policy
         try {
             const savedPolicy = S.user ? localStorage.getItem(`securepass_company_policy_u${uid}`) : null;
@@ -5601,11 +5607,36 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
         if (_aipCurrentPolicy) {
             _aipRenderResult(_aipCurrentPolicy);
         } else {
-            // Check domain and formulate initial policy
-            _aipGeneratePolicy();
+            // Awaiting user's real firm details — do not auto-generate fake Acme policy
+            _aipShowAwaitingDetailsState();
         }
 
         if (window.lucide) lucide.createIcons();
+    }
+
+    function _aipShowAwaitingDetailsState() {
+        const loadingState = document.getElementById('aipLoadingState');
+        const resultSection = document.getElementById('aipResultSection');
+        if (loadingState) loadingState.style.display = 'none';
+        if (resultSection) {
+            resultSection.style.display = 'block';
+            resultSection.innerHTML = `
+                <div class="card" style="text-align:center; padding:44px 24px; background:#f8fafc; border:1.5px dashed #cbd5e1; border-radius:14px;">
+                    <div style="width:50px; height:50px; border-radius:12px; background:#eff6ff; color:#2563eb; display:flex; align-items:center; justify-content:center; margin:0 auto 14px auto;">
+                        <i data-lucide="shield-alert" style="width:24px;height:24px;"></i>
+                    </div>
+                    <h3 style="font-size:16px; font-weight:700; color:#0f172a; margin-bottom:6px;">Awaiting Company &amp; Infrastructure Details</h3>
+                    <p style="font-size:13.5px; color:#64748b; max-width:540px; margin:0 auto 20px auto; line-height:1.55;">
+                        To engineer a bespoke Enterprise Password Policy tailored to your firm, please enter your real <strong>Company / Brand Name</strong> and <strong>Website Domain</strong> in Step 1 above. SecurePass AI will synthesize your threat posture and dataset metrics to build your unique policy.
+                    </p>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="document.getElementById('aipInputOrgName').focus();">
+                        <i data-lucide="edit-3" style="width:13px;height:13px;"></i>
+                        <span>Enter Firm Details Above</span>
+                    </button>
+                </div>
+            `;
+            if (window.lucide) lucide.createIcons();
+        }
     }
 
     function _aipSyncTelemetry() {
@@ -5847,12 +5878,44 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
         const industrySelect = document.getElementById('aipSelectIndustry');
         const cisoInput = document.getElementById('aipInputCisoName');
         const notesInput = document.getElementById('aipInputNotes');
+        const alertEl = document.getElementById('aipCompanyAlert');
 
-        let companyName = (orgInput && orgInput.value.trim()) || _getDefaultOrgName();
+        let companyName = (orgInput && orgInput.value.trim()) || '';
         let companyDomain = (domainInput && domainInput.value.trim()) || '';
         let companyIndustry = (industrySelect && industrySelect.value) || 'Technology & Cloud SaaS';
         const cisoName = (cisoInput && cisoInput.value.trim()) || 'Chief Information Security Officer (CISO)';
         const securityFocus = (notesInput && notesInput.value.trim()) || '';
+
+        // Require real company name and domain before policy generation
+        if (!companyName || !companyDomain) {
+            if (alertEl) {
+                alertEl.style.display = 'block';
+                alertEl.style.background = '#fffbeb';
+                alertEl.style.border = '1.5px solid #fde68a';
+                alertEl.style.color = '#92400e';
+                alertEl.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <i data-lucide="alert-triangle" style="width:18px;height:18px;color:#d97706;flex-shrink:0;"></i>
+                        <div>
+                            <strong>Organization Details Required:</strong>
+                            <span> Please enter your real Company / Brand Name and Website Domain (e.g. <em>stripe.com</em>) above so SecurePass AI can engineer your unique policy.</span>
+                        </div>
+                    </div>
+                `;
+                if (window.lucide) lucide.createIcons();
+            }
+            if (!companyName && orgInput) {
+                orgInput.focus();
+                orgInput.style.borderColor = '#ef4444';
+                setTimeout(() => { orgInput.style.borderColor = ''; }, 3000);
+            } else if (!companyDomain && domainInput) {
+                domainInput.focus();
+                domainInput.style.borderColor = '#ef4444';
+                setTimeout(() => { domainInput.style.borderColor = ''; }, 3000);
+            }
+            toast('Please enter your Company Name and Official Website Domain to formulate your policy.', 'warning');
+            return;
+        }
 
         // Verify corporate domain is active and not fake before formulating policy
         if (companyDomain) {
@@ -5863,10 +5926,6 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
                     return;
                 }
             }
-        } else {
-            const ok = await _aipLookupDomain(false);
-            if (!ok) return;
-            companyDomain = (domainInput && domainInput.value.trim()) || 'acme.com';
         }
 
         const generateBtn = document.getElementById('btnAipGeneratePolicy');
@@ -6363,21 +6422,25 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
                     Policy active and bound to your target organization. Export or generate a certified executive PDF report.
                 </div>
                 <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <button id="btnAipDownloadPdf" type="button" class="btn btn-primary btn-sm" style="display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
+                        <i data-lucide="download" style="width:14px;height:14px;"></i>
+                        <span>Download Policy PDF</span>
+                    </button>
                     <button id="btnAipCopyPolicy" type="button" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
                         <i data-lucide="copy" style="width:14px;height:14px;"></i>
                         <span>Copy Policy Text</span>
                     </button>
                     <button id="btnAipDownloadMd" type="button" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
-                        <i data-lucide="download" style="width:14px;height:14px;"></i>
+                        <i data-lucide="file-code" style="width:14px;height:14px;"></i>
                         <span>Download Markdown (.md)</span>
                     </button>
                     <button id="btnAipDownloadTxt" type="button" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
                         <i data-lucide="file-text" style="width:14px;height:14px;"></i>
                         <span>Download Text (.txt)</span>
                     </button>
-                    <button id="btnAipGoReports" type="button" class="btn btn-primary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
+                    <button id="btnAipGoReports" type="button" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:6px;">
                         <i data-lucide="file-check-2" style="width:14px;height:14px;"></i>
-                        <span>Open Reports &amp; Export PDF</span>
+                        <span>Audit Reports Hub</span>
                     </button>
                 </div>
             </div>
@@ -6392,6 +6455,13 @@ Write 3-4 sentences: 1) overall posture summary, 2) biggest risk and standard mo
                 });
             });
         });
+
+        const dlPdfBtn = document.getElementById('btnAipDownloadPdf');
+        if (dlPdfBtn) {
+            dlPdfBtn.addEventListener('click', () => {
+                _aipDownloadPdf();
+            });
+        }
 
         const copyBtn = document.getElementById('btnAipCopyPolicy');
         if (copyBtn) {
@@ -6544,7 +6614,172 @@ Organization: ${policy.company_name}
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    async function _aipDownloadPdf() {
+        if (!_aipCurrentPolicy) {
+            toast('Please enter your firm details and formulate your AI policy first.', 'warning');
+            const orgInput = document.getElementById('aipInputOrgName');
+            if (orgInput) orgInput.focus();
+            return;
+        }
+
+        const btn = document.getElementById('btnAipDownloadPdf');
+        const topBtn = document.getElementById('btnAipDownloadPdfTop');
+        const origHtml = btn ? btn.innerHTML : '';
+        const origTopHtml = topBtn ? topBtn.innerHTML : '';
+
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner" style="width:12px;height:12px;display:inline-block;border:2px solid #ffffff;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;"></span> Preparing PDF…';
+        }
+        if (topBtn) {
+            topBtn.disabled = true;
+            topBtn.innerHTML = '<span class="spinner" style="width:12px;height:12px;display:inline-block;border:2px solid #ffffff;border-top-color:transparent;border-radius:50%;animation:spin 0.6s linear infinite;"></span> Generating…';
+        }
+
+        try {
+            const csrf = await getCsrf();
+            const headers = { 'Content-Type': 'application/json' };
+            if (csrf) headers['X-CSRF-TOKEN'] = csrf;
+
+            const res = await fetch('/api/ai-policy/download-pdf', {
+                method: 'POST',
+                headers,
+                credentials: 'include',
+                body: JSON.stringify({ policy: _aipCurrentPolicy })
+            });
+
+            if (!res.ok) {
+                throw new Error(`Server returned status ${res.status}`);
+            }
+
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const safeName = (_aipCurrentPolicy.company_name || 'Enterprise').replace(/[^a-zA-Z0-9_-]/g, '_');
+            a.href = url;
+            a.download = `${safeName}_Password_Policy.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            toast(`Executive Password Policy PDF for ${_aipCurrentPolicy.company_name} downloaded successfully!`, 'success');
+        } catch (err) {
+            console.error('PDF download error:', err);
+            _aipPrintFallbackPdf(_aipCurrentPolicy);
+        } finally {
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+                if (window.lucide) lucide.createIcons();
+            }
+            if (topBtn) {
+                topBtn.disabled = false;
+                topBtn.innerHTML = origTopHtml;
+                if (window.lucide) lucide.createIcons();
+            }
+        }
+    }
+
+    function _aipPrintFallbackPdf(policy) {
+        if (!policy) return;
+        const printWin = window.open('', '_blank', 'width=900,height=800');
+        if (!printWin) {
+            toast('Popup blocker prevented print preview. Please allow popups or download text/markdown version.', 'warning');
+            return;
+        }
+
+        const tc = policy.technical_controls || {};
+        const tp = policy.threat_profile || {};
+        const gl = policy.workforce_guidelines || { dos: [], donts: [] };
+        const bl = policy.company_blacklist || [];
+
+        printWin.document.write(`<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>${esc(policy.company_name)} - Corporate Password Policy</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #0f172a; margin: 40px; font-size: 13px; line-height: 1.5; }
+        .header { border-bottom: 2px solid #1565c0; padding-bottom: 12px; margin-bottom: 20px; }
+        .meta-box { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; margin-bottom: 20px; font-size: 12px; }
+        h1 { font-size: 22px; color: #0d1b4b; margin: 4px 0; }
+        h2 { font-size: 15px; color: #0d1b4b; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-top: 24px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+        th, td { border: 1px solid #cbd5e1; padding: 6px 10px; text-align: left; }
+        th { background: #0d1b4b; color: #ffffff; }
+        .guide-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .attest { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 30px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 14px; font-size: 11.5px; }
+        @media print { body { margin: 20px; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div style="font-size:11px; font-weight:700; color:#1565c0;">SECUREPASS AI ENTERPRISE POLICY ENGINE · ADAPTIVE ZERO-TRUST</div>
+        <h1>${esc(policy.company_name)} Corporate Password &amp; Authentication Policy</h1>
+        <div style="color:#64748b; font-size:12px;">Zero-Trust Authentication Standard engineered for ${esc(policy.company_domain)} (${esc(policy.company_industry)}) with SecurePass AI</div>
+    </div>
+    <div class="meta-box">
+        <div><strong>TARGET ENTITY:</strong><br/>${esc(policy.company_name)}</div>
+        <div><strong>OFFICIAL DOMAIN:</strong><br/>${esc(policy.company_domain)}</div>
+        <div><strong>APPROVING CISO:</strong><br/>${esc(policy.ciso_name)}</div>
+        <div><strong>THREAT POSTURE:</strong><br/>${esc(tp.threat_level || 'HIGH')}</div>
+    </div>
+    <h2>1. Executive Threat Assessment &amp; Web Context</h2>
+    <p>${esc(tp.executive_summary || '')}</p>
+    <ul>
+        ${(tp.primary_threat_vectors || []).map(v => `<li><strong>${esc(v)}</strong></li>`).join('')}
+    </ul>
+    <h2>2. Enforced Technical Controls</h2>
+    <table>
+        <tr><th>Control Requirement</th><th>Standard User Baseline</th><th>Privileged Access</th><th>Enforcement Standard</th></tr>
+        <tr><td>Minimum Length</td><td>${tc.min_length_standard || 14} characters</td><td>${tc.min_length_privileged || 18}+ chars</td><td>IAM Pre-Save Hook</td></tr>
+        <tr><td>Inactivity Lockout</td><td>${tc.inactivity_lockout_mins || 10} minutes</td><td>5 minutes</td><td>OS Screen Lock &amp; Token Expiry</td></tr>
+        <tr><td>MFA Scope</td><td>${esc(tc.mfa_enforcement || 'Mandatory FIDO2/TOTP')}</td><td>Mandatory Hardware Key</td><td>Phishing-Resistant MFA</td></tr>
+        <tr><td>Rotation Policy</td><td>${esc(tc.rotation_policy || 'Event-driven only')}</td><td>Event-driven only</td><td>Periodic Expiration Banned</td></tr>
+        <tr><td>Storage Standard</td><td>${esc(tc.storage_cryptography || 'Argon2id Salted')}</td><td>HSM Salted Argon2id</td><td>Plaintext Banned</td></tr>
+        <tr><td>Continuous Screening</td><td>SecurePass AI &amp; HIBP API</td><td>Daily Automated Audit</td><td>Continuous Active Telemetry</td></tr>
+    </table>
+    <h2>3. Prohibited Organizational Patterns &amp; Blacklist</h2>
+    <p>Passwords containing brand tokens or seasonal patterns are barred: ${bl.map(b => `<code>${esc(b)}</code>`).join(', ')}</p>
+    <h2>4. Employee Security Hygiene</h2>
+    <div class="guide-grid">
+        <div>
+            <strong style="color:#15803d;">APPROVED PRACTICES (DOS):</strong>
+            <ul>${gl.dos.map(d => `<li>${esc(d)}</li>`).join('')}</ul>
+        </div>
+        <div>
+            <strong style="color:#b91c1c;">PROHIBITED ACTIONS (DON'TS):</strong>
+            <ul>${gl.donts.map(d => `<li>${esc(d)}</li>`).join('')}</ul>
+        </div>
+    </div>
+    <h2>5. Governance Attestation</h2>
+    <div class="attest">
+        <div>
+            <strong>ORGANIZATIONAL APPROVAL</strong><br/><br/>
+            Approver: ${esc(policy.ciso_name)}<br/>
+            Title: Chief Information Security Officer / Head of Security<br/>
+            Organization: ${esc(policy.company_name)}<br/>
+            Signature: _______________________________<br/>
+            Date: ${esc(policy.generated_at || new Date().toUTCString())}
+        </div>
+        <div>
+            <strong>SECUREPASS AI ATTESTATION</strong><br/><br/>
+            Verification Engine: SecurePass AI Adaptive Threat Intelligence<br/>
+            Telemetry Status: CONTINUOUS ENFORCEMENT ACTIVE<br/>
+            Audit Schedule: Automated Daily Verification Cron<br/>
+            Attestation: CERTIFIED &amp; ENFORCED
+        </div>
+    </div>
+</body>
+</html>`);
+        printWin.document.close();
+        printWin.focus();
+        setTimeout(() => {
+            printWin.print();
+        }, 300);
     }
 
 

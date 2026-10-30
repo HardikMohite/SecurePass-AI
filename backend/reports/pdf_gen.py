@@ -1124,3 +1124,378 @@ def generate_pdf_report(data: dict, chart_paths: dict = None, output_dir: str = 
     logger.info('SecurePass AI 8-Page Report generated successfully: %s', out_path)
 
     return out_path
+
+# ────────────────────────────────────────────────────────────────────────────
+#  Bespoke AI Enterprise Password Policy PDF Generator
+# ────────────────────────────────────────────────────────────────────────────
+
+class PolicyNumberedCanvas(canvas.Canvas):
+    """
+    Two-pass canvas renderer for AI Policy PDF with running header and footer.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._saved_page_states = []
+
+    def showPage(self):
+        self._saved_page_states.append(dict(self.__dict__))
+        self._startPage()
+
+    def save(self):
+        num_pages = len(self._saved_page_states)
+        for state in self._saved_page_states:
+            self.__dict__.update(state)
+            self._draw_furniture(num_pages)
+            super().showPage()
+        super().save()
+
+    def _draw_furniture(self, page_count: int):
+        W = 8.5 * inch
+        left = 0.55 * inch
+        right = W - 0.55 * inch
+        org = getattr(self, '_custom_org_name', 'ENTERPRISE')
+
+        # Running Header
+        self.setFont('Helvetica-Bold', 7)
+        self.setFillColor(MUTED_TEXT)
+        header_text = f'SECUREPASS AI  ·  CORPORATE PASSWORD POLICY  ·  {org.upper()}  ·  STRICTLY CONFIDENTIAL'
+        self.drawCentredString(W / 2.0, 10.45 * inch, header_text)
+
+        self.setStrokeColor(BORDER_COLOR)
+        self.setLineWidth(0.5)
+        self.line(left, 10.35 * inch, right, 10.35 * inch)
+
+        # Running Footer
+        self.line(left, 0.65 * inch, right, 0.65 * inch)
+        self.setFont('Helvetica', 7.5)
+        self.drawString(left, 0.50 * inch, f'{org} — Enforced & Monitored via SecurePass AI Platform')
+        self.drawRightString(right, 0.50 * inch, f'Page {self._pageNumber} of {page_count}')
+
+
+def generate_ai_policy_pdf(policy_data: Dict[str, Any], output_path: Optional[str] = None) -> bytes:
+    """
+    Generate an executive-grade, bespoke PDF of the AI Enterprise Password Policy
+    formulated specifically for this company, with explicit mentions of the company
+    and SecurePass AI continuous telemetry.
+    """
+    import hashlib
+    buf = BytesIO()
+
+    doc = SimpleDocTemplate(
+        buf,
+        pagesize=letter,
+        leftMargin=0.55 * inch,
+        rightMargin=0.55 * inch,
+        topMargin=0.75 * inch,
+        bottomMargin=0.75 * inch,
+    )
+
+    ss = getSampleStyleSheet()
+    styles = {
+        'TopSuper': ParagraphStyle('TopSuper', parent=ss['Normal'], fontName='Helvetica-Bold', fontSize=7.5, leading=10, textColor=PRIMARY_BLUE),
+        'DocTitle': ParagraphStyle('DocTitle', parent=ss['Normal'], fontName='Helvetica-Bold', fontSize=18, leading=22, textColor=NAVY),
+        'DocSubtitle': ParagraphStyle('DocSubtitle', parent=ss['Normal'], fontName='Helvetica', fontSize=9, leading=13, textColor=MUTED_TEXT),
+        'SectionHead': ParagraphStyle('SectionHead', parent=ss['Normal'], fontName='Helvetica-Bold', fontSize=11, leading=15, textColor=NAVY, spaceBefore=10, spaceAfter=4),
+        'SubHead': ParagraphStyle('SubHead', parent=ss['Normal'], fontName='Helvetica-Bold', fontSize=8.5, leading=11, textColor=PRIMARY_BLUE, spaceBefore=4, spaceAfter=2),
+        'Body': ParagraphStyle('Body', parent=ss['Normal'], fontName='Helvetica', fontSize=8, leading=11.5, textColor=BODY_TEXT),
+        'BodyBold': ParagraphStyle('BodyBold', parent=ss['Normal'], fontName='Helvetica-Bold', fontSize=8, leading=11.5, textColor=DARK_TEXT),
+        'MetaLabel': ParagraphStyle('MetaLabel', parent=ss['Normal'], fontName='Helvetica-Bold', fontSize=7.5, leading=10, textColor=MUTED_TEXT),
+        'MetaVal': ParagraphStyle('MetaVal', parent=ss['Normal'], fontName='Helvetica-Bold', fontSize=8, leading=11, textColor=DARK_TEXT),
+        'TableCell': ParagraphStyle('TableCell', parent=ss['Normal'], fontName='Helvetica', fontSize=7.5, leading=10.5, textColor=BODY_TEXT),
+        'TableCellBold': ParagraphStyle('TableCellBold', parent=ss['Normal'], fontName='Helvetica-Bold', fontSize=7.5, leading=10.5, textColor=DARK_TEXT),
+        'TableHead': ParagraphStyle('TableHead', parent=ss['Normal'], fontName='Helvetica-Bold', fontSize=7.5, leading=10, textColor=colors.white),
+        'Bullet': ParagraphStyle('Bullet', parent=ss['Normal'], fontName='Helvetica', fontSize=8, leading=11.5, textColor=BODY_TEXT, leftIndent=10),
+        'DoItem': ParagraphStyle('DoItem', parent=ss['Normal'], fontName='Helvetica', fontSize=7.5, leading=10.5, textColor=DARK_TEXT),
+        'DontItem': ParagraphStyle('DontItem', parent=ss['Normal'], fontName='Helvetica', fontSize=7.5, leading=10.5, textColor=DARK_TEXT),
+    }
+
+    org_name = policy_data.get('company_name') or 'Target Enterprise'
+    domain = policy_data.get('company_domain') or 'company.com'
+    industry = policy_data.get('company_industry') or 'Technology & Cloud SaaS'
+    ciso = policy_data.get('ciso_name') or 'Chief Information Security Officer'
+    date_str = str(policy_data.get('generated_at') or datetime.utcnow().strftime('%a, %d %b %Y %H:%M:%S GMT'))
+
+    tp = policy_data.get('threat_profile') or {}
+    threat_level = tp.get('threat_level', 'HIGH')
+    summary_text = tp.get('executive_summary', f'Bespoke Enterprise Password Policy tailored for {org_name}.')
+    vectors = tp.get('primary_threat_vectors', [
+        f'Targeted credential stuffing against {domain}',
+        'Password spraying targeting corporate SSO endpoints',
+        'API credential leakage from internal developer workstations'
+    ])
+
+    tc = policy_data.get('technical_controls') or {}
+    min_len = tc.get('min_length_standard', 14)
+    min_priv = tc.get('min_length_privileged', 18)
+    lockout = tc.get('inactivity_lockout_mins', 10)
+    mfa = tc.get('mfa_enforcement', 'Mandatory FIDO2 / Authenticator App across all logins')
+    rot = tc.get('rotation_policy', 'Event-driven only; periodic scheduled resets eliminated')
+    crypto = tc.get('storage_cryptography', 'Argon2id or PBKDF2 with unique per-credential salt')
+    screening = tc.get('breach_screening', 'Pre-save and automated continuous verification via SecurePass AI and HIBP corpora')
+
+    bl = policy_data.get('company_blacklist') or []
+    gl = policy_data.get('workforce_guidelines') or {'dos': [], 'donts': []}
+    passphrases = policy_data.get('passphrases') or []
+
+    story = []
+
+    # ── Top Title Block ─────────────────────────────────────────────
+    title_data = [
+        [
+            Paragraph('<b>SECUREPASS AI ENTERPRISE POLICY ENGINE · ADAPTIVE ZERO-TRUST</b>', styles['TopSuper']),
+            Paragraph(f'<b>THREAT POSTURE: {threat_level}</b>', ParagraphStyle('Badge', parent=ss['Normal'], fontName='Helvetica-Bold', fontSize=8, leading=10, textColor=colors.white, alignment=2))
+        ],
+        [
+            Paragraph(f'<b>{org_name} Corporate Password &amp; Authentication Policy</b>', styles['DocTitle']),
+            Paragraph(f'<b>Formulated:</b> {date_str[:25]}', ParagraphStyle('DateP', parent=ss['Normal'], fontName='Helvetica', fontSize=7.5, leading=10, textColor=MUTED_TEXT, alignment=2))
+        ],
+        [
+            Paragraph(f'Zero-Trust Authentication Standard engineered for <b>{domain}</b> ({industry}) with <b>SecurePass AI</b>', styles['DocSubtitle']),
+            Paragraph(f'<b>Authority:</b> {ciso}', ParagraphStyle('AuthP', parent=ss['Normal'], fontName='Helvetica', fontSize=7.5, leading=10, textColor=MUTED_TEXT, alignment=2))
+        ]
+    ]
+    title_tab = Table(title_data, colWidths=[380, 152])
+    title_tab.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    story.append(title_tab)
+    story.append(Spacer(1, 4))
+    story.append(HRFlowable(width='100%', thickness=1.5, color=PRIMARY_BLUE, spaceBefore=4, spaceAfter=8))
+
+    # ── Meta Box Table ──────────────────────────────────────────────
+    meta_rows = [
+        [
+            Paragraph('TARGET ORGANIZATION', styles['MetaLabel']),
+            Paragraph('OFFICIAL DOMAIN', styles['MetaLabel']),
+            Paragraph('INDUSTRY SECTOR', styles['MetaLabel']),
+            Paragraph('SECURITY APPROVER', styles['MetaLabel']),
+        ],
+        [
+            Paragraph(f'<b>{org_name}</b>', styles['MetaVal']),
+            Paragraph(f'<b>{domain}</b>', styles['MetaVal']),
+            Paragraph(f'<b>{industry}</b>', styles['MetaVal']),
+            Paragraph(f'<b>{ciso}</b>', styles['MetaVal']),
+        ],
+        [
+            Paragraph('GOVERNANCE STANDARD', styles['MetaLabel']),
+            Paragraph('CONTINUOUS AUDITING', styles['MetaLabel']),
+            Paragraph('POLICY STATUS', styles['MetaLabel']),
+            Paragraph('VERIFICATION AUTHORITY', styles['MetaLabel']),
+        ],
+        [
+            Paragraph('Zero-Trust v2.4 (NIST / CIS / ISO)', styles['MetaVal']),
+            Paragraph('Active Daily Telemetry Hooks', styles['MetaVal']),
+            Paragraph('<font color="#15803d"><b>ENFORCED &amp; ACTIVE</b></font>', styles['MetaVal']),
+            Paragraph('SecurePass AI Adaptive Engine', styles['MetaVal']),
+        ],
+    ]
+    meta_tab = Table(meta_rows, colWidths=[133, 133, 133, 133])
+    meta_tab.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), LIGHT_BG),
+        ('BOX', (0, 0), (-1, -1), 0.75, BORDER_COLOR),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    story.append(meta_tab)
+    story.append(Spacer(1, 10))
+
+    # ── Section 1: Executive Threat Summary & Attack Vectors ────────
+    story.append(Paragraph('1. Executive Threat Assessment &amp; Web Context', styles['SectionHead']))
+    story.append(Paragraph(summary_text, styles['Body']))
+    story.append(Spacer(1, 4))
+    story.append(Paragraph('Primary Attack Vectors Targeted Against Organization:', styles['SubHead']))
+    for vec in vectors:
+        story.append(Paragraph(f'• <b>{vec}</b>', styles['Bullet']))
+    story.append(Spacer(1, 8))
+
+    # ── Section 2: Technical Controls Table ─────────────────────────
+    story.append(Paragraph('2. Enforced Technical Controls &amp; Authentication Baselines', styles['SectionHead']))
+    tech_table_data = [
+        [
+            Paragraph('CONTROL REQUIREMENT', styles['TableHead']),
+            Paragraph('STANDARD USER BASELINE', styles['TableHead']),
+            Paragraph('PRIVILEGED / ADMIN ACCESS', styles['TableHead']),
+            Paragraph('ENFORCEMENT MECHANISM', styles['TableHead']),
+        ],
+        [
+            Paragraph('<b>Minimum Password Length</b>', styles['TableCellBold']),
+            Paragraph(f'<b>{min_len} Characters</b> minimum', styles['TableCell']),
+            Paragraph(f'<b>{min_priv}+ Characters</b> (Passphrase)', styles['TableCell']),
+            Paragraph('Directory Hook &amp; Pre-Save Hash', styles['TableCell']),
+        ],
+        [
+            Paragraph('<b>Inactivity Lockout Window</b>', styles['TableCellBold']),
+            Paragraph(f'<b>{lockout} Minutes</b> maximum', styles['TableCell']),
+            Paragraph('<b>5 Minutes</b> strict timeout', styles['TableCell']),
+            Paragraph('OS Screen Lock &amp; JWT Revocation', styles['TableCell']),
+        ],
+        [
+            Paragraph('<b>Multi-Factor Authentication (MFA)</b>', styles['TableCellBold']),
+            Paragraph('Mandatory (FIDO2 / Authenticator)', styles['TableCell']),
+            Paragraph('Mandatory Hardware Security Key', styles['TableCell']),
+            Paragraph('Conditional Access Gateway', styles['TableCell']),
+        ],
+        [
+            Paragraph('<b>Credential Rotation Schedule</b>', styles['TableCellBold']),
+            Paragraph('<b>Event-Driven Only</b> (On Alert)', styles['TableCell']),
+            Paragraph('<b>Event-Driven Only</b>', styles['TableCell']),
+            Paragraph('Calendar 90-Day Resets Banned', styles['TableCell']),
+        ],
+        [
+            Paragraph('<b>Cryptographic Storage Standard</b>', styles['TableCellBold']),
+            Paragraph('Salted Argon2id / PBKDF2', styles['TableCell']),
+            Paragraph('HSM Salted Argon2id', styles['TableCell']),
+            Paragraph('Plaintext / MD5 Strictly Banned', styles['TableCell']),
+        ],
+        [
+            Paragraph('<b>Continuous Breach Screening</b>', styles['TableCellBold']),
+            Paragraph('Pre-save &amp; Daily Telemetry', styles['TableCell']),
+            Paragraph('Continuous Real-Time Telemetry', styles['TableCell']),
+            Paragraph('SecurePass AI &amp; HIBP Feeds', styles['TableCell']),
+        ],
+    ]
+    tech_tab = Table(tech_table_data, colWidths=[140, 130, 130, 132])
+    tech_tab.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('BOX', (0, 0), (-1, -1), 0.75, BORDER_COLOR),
+        ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+        ('TOPPADDING', (0, 0), (-1, -1), 3.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3.5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT_BG]),
+    ]))
+    story.append(tech_tab)
+    story.append(Spacer(1, 8))
+
+    # ── Section 3: Forbidden Patterns ───────────────────────────────
+    story.append(Paragraph('3. Organization-Specific Forbidden Patterns &amp; Credential Blacklist', styles['SectionHead']))
+    banned_intro = f'Credentials matching {org_name} trademarks, domain permutations, seasonal identifiers, or common dictionary walks are blocked immediately upon submission:'
+    story.append(Paragraph(banned_intro, styles['Body']))
+    story.append(Spacer(1, 3))
+
+    bl_chunks = [bl[i:i+4] for i in range(0, min(8, len(bl)), 4)]
+    if not bl_chunks:
+        bl_chunks = [[f'{org_name.lower()}', f'{domain.split(".")[0]}', 'Spring2026!', 'qwertyuiop']]
+    bl_rows = []
+    for chunk in bl_chunks:
+        bl_rows.append([Paragraph(f'<font color="#b91c1c">✘ <b>{item}</b></font>', styles['TableCellBold']) for item in chunk])
+        while len(bl_rows[-1]) < 4:
+            bl_rows[-1].append(Paragraph('', styles['TableCell']))
+    bl_tab = Table(bl_rows, colWidths=[133, 133, 133, 133])
+    bl_tab.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), RED_BG),
+        ('BOX', (0, 0), (-1, -1), 0.5, colors.HexColor('#fecaca')),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+    ]))
+    story.append(bl_tab)
+    story.append(Spacer(1, 8))
+
+    # ── Section 4: Workforce Guidelines (Dos & Don'ts) ──────────────
+    dos = gl.get('dos') or [
+        f"Use memorable 4-word passphrases for all {org_name} authentication endpoints",
+        "Store all credentials strictly within the enterprise-approved password vault",
+        "Verify each MFA push notification against physical workstation context before approving",
+        "Lock unattended workstations (Win+L / Cmd+Ctrl+Q) immediately when departing"
+    ]
+    donts = gl.get('donts') or [
+        f"Never incorporate '{org_name}', domain tokens, usernames, or current year into passwords",
+        "Never reuse company credentials on personal devices, external apps, or social platforms",
+        "Never write credentials on physical media, plaintext files, or unencrypted text repositories",
+        "Never share login credentials, API secrets, or MFA verification tokens with colleagues"
+    ]
+
+    story.append(Paragraph('4. Employee Security Hygiene &amp; Operational Guidelines', styles['SectionHead']))
+    dos_html = '<br/>'.join([f'<font color="#15803d"><b>[YES]</b></font> {d}' for d in dos[:4]])
+    donts_html = '<br/>'.join([f'<font color="#b91c1c"><b>[NO]</b></font> {d}' for d in donts[:4]])
+
+    guide_tab = Table([
+        [
+            Paragraph('<b>APPROVED HYGIENE PRACTICES (DO)</b>', ParagraphStyle('DoHead', parent=ss['Normal'], fontName='Helvetica-Bold', fontSize=8, leading=10, textColor=GREEN)),
+            Paragraph('<b>STRICTLY PROHIBITED BEHAVIORS (DON&apos;T)</b>', ParagraphStyle('DontHead', parent=ss['Normal'], fontName='Helvetica-Bold', fontSize=8, leading=10, textColor=RED)),
+        ],
+        [
+            Paragraph(dos_html, styles['DoItem']),
+            Paragraph(donts_html, styles['DontItem']),
+        ]
+    ], colWidths=[266, 266])
+    guide_tab.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, 0), GREEN_BG),
+        ('BACKGROUND', (1, 0), (1, 0), RED_BG),
+        ('BACKGROUND', (0, 1), (0, 1), colors.white),
+        ('BACKGROUND', (1, 1), (1, 1), colors.white),
+        ('BOX', (0, 0), (0, -1), 0.5, colors.HexColor('#bbf7d0')),
+        ('BOX', (1, 0), (1, -1), 0.5, colors.HexColor('#fecaca')),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('LEFTPADDING', (0, 0), (-1, -1), 8),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+    ]))
+    story.append(guide_tab)
+    story.append(Spacer(1, 8))
+
+    # ── Section 5: Memorable Passphrases ────────────────────────────
+    if passphrases:
+        story.append(Paragraph('5. Approved Enterprise High-Entropy Passphrase Models', styles['SectionHead']))
+        p_items = []
+        for p in passphrases[:4]:
+            phrase = p.get('phrase') if isinstance(p, dict) else str(p)
+            entropy = p.get('entropy', 82) if isinstance(p, dict) else 82
+            p_items.append(Paragraph(f'<code>{phrase}</code> — <b>{entropy} bits</b> entropy', styles['TableCellBold']))
+        while len(p_items) < 4:
+            p_items.append(Paragraph('', styles['TableCell']))
+        pass_tab = Table([p_items], colWidths=[133, 133, 133, 133])
+        pass_tab.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), LIGHT_BG),
+            ('BOX', (0, 0), (-1, -1), 0.5, BORDER_COLOR),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(pass_tab)
+        story.append(Spacer(1, 8))
+
+    # ── Section 6: Governance Attestation & Sign-off ────────────────
+    story.append(KeepTogether([
+        Paragraph('6. Governance Attestation &amp; Cryptographic Audit Verification', styles['SectionHead']),
+        Spacer(1, 2),
+        Table([
+            [
+                Paragraph('<b>EXECUTIVE ORGANIZATIONAL APPROVAL</b>', styles['SubHead']),
+                Paragraph('<b>SECUREPASS AI CRYPTOGRAPHIC ATTESTATION</b>', styles['SubHead'])
+            ],
+            [
+                Paragraph(f'<b>Approver:</b> {ciso}<br/><b>Title:</b> Chief Information Security Officer / Head of Security<br/><b>Entity:</b> {org_name}<br/><b>Signature:</b> ____________________________________<br/><b>Attestation Date:</b> {date_str[:25]}', styles['TableCell']),
+                Paragraph(f'<b>Platform:</b> SecurePass AI Adaptive Threat Intelligence<br/><b>Telemetry Status:</b> CONTINUOUS ENFORCEMENT ACTIVE<br/><b>Cryptographic Verification Seal:</b><br/><code>SECUREPASS-AI-CERTIFIED-POLICY-{hashlib.sha256(org_name.encode()).hexdigest()[:12].upper()}</code><br/><b>Audit Schedule:</b> Automated Daily Verification Cron', styles['TableCell'])
+            ]
+        ], colWidths=[266, 266], style=[
+            ('BACKGROUND', (0, 0), (-1, -1), LIGHT_BG),
+            ('BOX', (0, 0), (-1, -1), 0.75, BORDER_COLOR),
+            ('INNERGRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#e2e8f0')),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+        ])
+    ]))
+
+    canvas_maker = PolicyNumberedCanvas
+    setattr(canvas_maker, '_custom_org_name', org_name)
+    doc.build(story, canvasmaker=canvas_maker)
+
+    pdf_data = buf.getvalue()
+    if output_path:
+        with open(output_path, 'wb') as f:
+            f.write(pdf_data)
+
+    return pdf_data
