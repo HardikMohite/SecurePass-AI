@@ -14,8 +14,12 @@
 window.Auth = (function () {
     'use strict';
 
-    const API_BASE = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL && !import.meta.env.VITE_API_BASE_URL.includes('localhost'))
-        ? import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, '')
+    const isVercelHost = typeof window !== 'undefined' && window.location && window.location.hostname.includes('vercel.app');
+    const rawApiBase = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_BASE_URL)
+        ? import.meta.env.VITE_API_BASE_URL.trim()
+        : '';
+    const API_BASE = (!isVercelHost && rawApiBase && !rawApiBase.includes('localhost'))
+        ? rawApiBase.replace(/\/+$/, '')
         : '';
     const API = API_BASE + '/api/auth';
 

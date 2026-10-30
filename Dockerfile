@@ -39,3 +39,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
 WORKDIR /app/backend
 
 CMD ["/bin/sh", "/app/backend/start.sh"]
+

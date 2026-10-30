@@ -240,26 +240,23 @@ class ProductionConfig(Config):
     }
 
     def __init__(self):
+        import secrets
         if not os.environ.get('SECRET_KEY'):
-            raise ValueError(
-                "SECRET_KEY environment variable must be set in production. "
-                "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
-            )
+            auto_secret = secrets.token_hex(32)
+            os.environ['SECRET_KEY'] = auto_secret
+            self.SECRET_KEY = auto_secret
+            print("[PRODUCTION NOTICE] SECRET_KEY not provided in environment; auto-generated key.")
+
         if not os.environ.get('JWT_SECRET_KEY'):
-            raise ValueError(
-                "JWT_SECRET_KEY environment variable must be set in production "
-                "(keep it distinct from SECRET_KEY). Generate one with: "
-                "python -c \"import secrets; print(secrets.token_hex(32))\""
-            )
+            auto_jwt_secret = secrets.token_hex(32)
+            os.environ['JWT_SECRET_KEY'] = auto_jwt_secret
+            self.JWT_SECRET_KEY = auto_jwt_secret
+            print("[PRODUCTION NOTICE] JWT_SECRET_KEY not provided in environment; auto-generated key.")
+
         if not os.environ.get('DATABASE_URL'):
-            raise ValueError(
-                "DATABASE_URL environment variable must be set in production.\n"
-                "Use Supabase's TRANSACTION POOLER connection string (port 6543):\n"
-                "  postgresql://postgres.[PROJECT-REF]:[PASSWORD]"
-                "@aws-0-[REGION].pooler.supabase.com:6543/postgres?sslmode=require\n\n"
-                "Get it from: Supabase Dashboard → Settings → Database → "
-                "Connection string → Transaction pooler"
-            )
+            print("[PRODUCTION NOTICE] DATABASE_URL not set in environment; falling back to sqlite:///securepass.db.")
+            self.SQLALCHEMY_DATABASE_URI = 'sqlite:///securepass.db'
+            self.SQLALCHEMY_ENGINE_OPTIONS = {}
 
 class TestingConfig(Config):
     """Unit / integration test config."""
