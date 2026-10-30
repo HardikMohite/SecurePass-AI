@@ -1111,15 +1111,25 @@
                 let breachStats = null;
                 if (window.HIBP && typeof window.HIBP.checkPassword === 'function') {
                     try {
-                        const sampleLimit = Math.min(25, rawLines.length);
+                        const sampleLimit = Math.min(15, rawLines.length);
                         const step = Math.max(1, Math.floor(rawLines.length / sampleLimit));
+                        const sampleCandidates = [];
+                        for (let i = 0; i < rawLines.length && sampleCandidates.length < sampleLimit; i += step) {
+                            sampleCandidates.push(rawLines[i]);
+                        }
+
+                        // Run breach lookups concurrently in parallel for instant execution
+                        const chkResults = await Promise.all(
+                            sampleCandidates.map(pw => window.HIBP.checkPassword(pw).catch(() => null))
+                        );
+
                         let breachedCount = 0;
                         let tested = 0;
-
-                        for (let i = 0; i < rawLines.length && tested < sampleLimit; i += step) {
-                            const chk = await window.HIBP.checkPassword(rawLines[i]);
-                            if (chk && chk.breached) breachedCount++;
-                            tested++;
+                        for (const chk of chkResults) {
+                            if (chk) {
+                                if (chk.breached) breachedCount++;
+                                tested++;
+                            }
                         }
 
                         const rate = tested > 0 ? (breachedCount / tested) : 0;
@@ -1203,27 +1213,22 @@
             completeSteps();
             // Reset AI Policy so it re-fetches fresh data on next navigation
             _aipLoaded = false;
+            // Immediately switch UI to completed audit state and render all results
             setTimeout(() => {
                 if (load) load.style.display = 'none';
-                if (cv) {
-                    cv.style.display = 'block';
-                    const cfn = $('completedFileName'), ccnt = $('completedPwCount');
-                    if (cfn) cfn.textContent = S._datasetName || 'dataset.txt';
-                    if (ccnt) ccnt.textContent = `${(S.results.overview?.total_passwords || 0).toLocaleString()} passwords audited`;
-                }
-                if (pill) { pill.textContent = 'AUDITED'; pill.style.color = '#10b981'; }
-
-                renderResults(S.results);
+                restoreAnalysisUI(S.results, S._datasetName);
                 renderAIDrawer(S.results.ai_insights);
 
-                // Smoothly reveal results with scroll
-                setTimeout(() => {
-                    const target = $('breachSection') || $('resultsSection');
-                    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }, 120);
+                // Smoothly reveal results directly to the executive dossier
+                requestAnimationFrame(() => {
+                    const target = $('datasetResultsDossier') || $('resultsSection');
+                    if (target) {
+                        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                });
 
                 toast(S.user ? 'Analysis complete! Full security dossier ready.' : 'Guest analysis complete! Sign in for full reports & AI Policy.', 'success');
-            }, 600);
+            }, 300);
         } catch (err) {
             if (load) load.style.display = 'none';
             if (uc) uc.style.display = 'block';
