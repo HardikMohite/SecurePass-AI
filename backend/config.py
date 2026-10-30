@@ -36,6 +36,7 @@ class Config:
     # ------------------------------------------------------------------ #
     # Falls back to dev key if not set; ProductionConfig enforces this strictly
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-only-insecure-key-change-in-production'
+    CHECK_EMAIL_DELIVERABILITY = False
 
     # CSRF protection: enforced by Flask-JWT-Extended's double-submit
     # cookie check (JWT_COOKIE_CSRF_PROTECT above), not Flask-WTF. A
@@ -219,6 +220,7 @@ class ProductionConfig(Config):
     SESSION_COOKIE_SAMESITE = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
     JWT_COOKIE_SECURE = True          # cookies only ever sent over HTTPS
     JWT_COOKIE_SAMESITE = os.environ.get('JWT_COOKIE_SAMESITE', 'None')
+    CHECK_EMAIL_DELIVERABILITY = False # Fast syntax validation without slow blocking DNS MX lookups
 
     # Force Postgres (or other URL) in production; SQLite not suitable.
     _prod_raw_db = os.environ.get('DATABASE_URL')

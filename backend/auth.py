@@ -147,15 +147,9 @@ def _normalise_email(raw: str):
     email = raw.strip().lower()
     if _EMAIL_VALIDATOR_AVAILABLE:
         try:
-            # Skip the live DNS/MX deliverability lookup under TESTING so the
-            # test suite (and CI) never depends on outbound network access —
-            # syntax/format validation still runs either way. Production
-            # (TESTING is always False there) keeps full deliverability
-            # checking.
-            deliverability = current_app.config.get(
-                'CHECK_EMAIL_DELIVERABILITY',
-                not current_app.config.get('TESTING', False)
-            )
+            # Deliverability (DNS MX check) is disabled by default to prevent
+            # slow, blocking external DNS queries during registration and login.
+            deliverability = current_app.config.get('CHECK_EMAIL_DELIVERABILITY', False)
             result = validate_email(
                 email,
                 check_deliverability=deliverability,
@@ -231,23 +225,27 @@ def register():
         if not ok:
             return jsonify({'error': pw_err}), 400
 
-        if User.query.filter_by(email=email).first():
-            return jsonify({'error': 'An account with this email already exists. Please sign in instead.'}), 409
-
         raw_username = data.get('username')
         username = raw_username.strip() if raw_username else None
+
+        # Check existing email or username in a single optimized DB roundtrip
         if username:
-            existing_user = User.query.filter(func.lower(User.username) == username.lower()).first()
-            if existing_user:
+            conflicts = User.query.filter(
+                or_(User.email == email, func.lower(User.username) == username.lower())
+            ).all()
+        else:
+            conflicts = User.query.filter(User.email == email).all()
+
+        for c in conflicts:
+            if c.email.lower() == email.lower():
+                return jsonify({'error': 'An account with this email already exists. Please sign in instead.'}), 409
+            if username and c.username and c.username.lower() == username.lower():
                 return jsonify({'error': f'The username "{username}" is already taken. Please choose another username.'}), 409
 
-        user = User(email=email, username=username)
+        now = datetime.utcnow()
+        user = User(email=email, username=username, last_login=now, created_at=now)
         user.set_password(data['password'])
         db.session.add(user)
-
-        # Flush to get user.id, then stamp last_login, then commit once
-        db.session.flush()
-        user.last_login = datetime.utcnow()
         db.session.commit()
 
         remember = bool(data.get('remember', False))

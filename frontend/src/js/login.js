@@ -33,6 +33,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // ── Pre-warm backend instance on load to eliminate cold-start delay ──
+    fetch('/api/health').catch(() => {});
+
     // ── Sanity check: Auth must be loaded ──────────────────────────────
     if (typeof window.Auth === 'undefined') {
         console.error('[login.js] window.Auth is not defined. Make sure auth.js is loaded BEFORE login.js.');

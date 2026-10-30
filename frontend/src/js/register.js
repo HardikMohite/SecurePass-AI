@@ -23,6 +23,9 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('[register.js] window.Auth is not defined. Make sure auth.js is loaded BEFORE register.js.');
     }
 
+    // ── Pre-warm backend instance on load to eliminate cold-start delay ──
+    fetch('/api/health').catch(() => {});
+
     // ── Eye toggles ────────────────────────────────────────────────────
     [{ btn: pwEye, inp: pwInput }, { btn: confEye, inp: confInput }].forEach(({ btn, inp }) => {
         if (btn && inp) {
@@ -128,8 +131,16 @@ document.addEventListener('DOMContentLoaded', () => {
             if (submitBtn) submitBtn.disabled = true;
             if (errMsg)    errMsg.classList.remove('visible');
 
+            // Render free-tier cold-start indicator
+            const warmTimer = setTimeout(() => {
+                if (btnText && submitBtn && submitBtn.disabled) {
+                    btnText.textContent = 'Connecting to secure cloud…';
+                }
+            }, 2500);
+
             try {
                 const result = await Auth.register(username, email, password);
+                clearTimeout(warmTimer);
                 if (result.ok) {
                     if (btnText) btnText.textContent = 'Account Created!';
                     setTimeout(() => { window.location.href = '/'; }, 600);
@@ -139,8 +150,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (submitBtn) submitBtn.disabled = false;
                 }
             } catch (err) {
+                clearTimeout(warmTimer);
                 console.error('[register.js] Unexpected error:', err);
-                showErr('An error occurred. Please try again.');
+                showErr(err.message || 'An error occurred. Please try again.');
                 if (btnText)   btnText.textContent = 'Create Account';
                 if (submitBtn) submitBtn.disabled = false;
             }
