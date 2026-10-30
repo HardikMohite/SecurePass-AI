@@ -1763,7 +1763,10 @@
     }
 
     /* ══ COMPLIANCE COMMAND CENTER ══════════════════════ */
+    let _complianceEventsBound = false;
     function setupCompliancePage() {
+        if (_complianceEventsBound) return;
+        _complianceEventsBound = true;
         const searchInput = $('complianceSearchInput');
         const frameworkFilter = $('complianceFrameworkFilter');
         const statusFilter = $('complianceStatusFilter');
@@ -3493,21 +3496,31 @@
             }
 
             // Eye show/hide toggle
-            if (eyeBtn && input) {
-                eyeBtn.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const isPassword = input.type === 'password' || input.getAttribute('type') === 'password';
-                    input.type = isPassword ? 'text' : 'password';
-                    input.setAttribute('type', isPassword ? 'text' : 'password');
-                    
-                    eyeBtn.innerHTML = isPassword
+            function toggleCompliancePasswordVisibility(e) {
+                if (e) {
+                    if (e.preventDefault) e.preventDefault();
+                    if (e.stopPropagation) e.stopPropagation();
+                }
+                const inp = $('complianceTestPassword') || input;
+                const btn = $('complianceTogglePwdEye') || eyeBtn;
+                if (!inp) return;
+                const isPassword = inp.type === 'password' || inp.getAttribute('type') === 'password';
+                inp.type = isPassword ? 'text' : 'password';
+                inp.setAttribute('type', isPassword ? 'text' : 'password');
+                
+                if (btn) {
+                    btn.innerHTML = isPassword
                         ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye-off"><path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49"/><path d="M14.084 14.158a3 3 0 0 1-4.242-4.242"/><path d="M17.479 17.499A10.75 10.75 0 0 1 1.2 12a1 1 0 0 1 0-.698 10.75 10.75 0 0 1 2.82-4.301"/><line x1="2" x2="22" y1="2" y2="22"/></svg>`
                         : `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-eye"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>`;
-                    eyeBtn.setAttribute('title', isPassword ? 'Hide Password' : 'Show Password');
-                    eyeBtn.setAttribute('aria-label', isPassword ? 'Hide Password' : 'Show Password');
-                });
+                    btn.setAttribute('title', isPassword ? 'Hide Password' : 'Show Password');
+                    btn.setAttribute('aria-label', isPassword ? 'Hide Password' : 'Show Password');
+                }
             }
+
+            if (eyeBtn && input) {
+                eyeBtn.onclick = toggleCompliancePasswordVisibility;
+            }
+            window.toggleCompliancePasswordVisibility = toggleCompliancePasswordVisibility;
 
             // Chips quick test click (if any exist)
             chips.forEach(chip => {
